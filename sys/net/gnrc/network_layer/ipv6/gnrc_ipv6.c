@@ -23,6 +23,7 @@
 #include "net/gnrc/icmpv6.h"
 #include "net/gnrc/sixlowpan/ctx.h"
 #include "net/gnrc/sixlowpan/nd.h"
+#include "net/gnrc/ipv6/ipsec/spd_api_mockup.h"
 #include "net/protnum.h"
 #include "thread.h"
 #include "utlist.h"
@@ -653,6 +654,18 @@ static void _receive(gnrc_pktsnip_t *pkt)
         gnrc_pktbuf_release(pkt);
         return;
     }
+#endif
+#ifdef MODULE_GNRC_IPV6_IPSEC
+//TODO: DEMUX if packet is for this device AND ESP or AH, if not check on SPD, 
+//DISCARD on failure, let it pass on on SUCCESS
+//TODO: should we jump directly to handling ESP or let it run through the basic routines?
+        /*
+        if (gnrc_ipv6_blacklisted(&((ipv6_hdr_t *)(pkt->data))->src)) {
+            DEBUG("ipv6: Source address blacklisted, dropping packet\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+        } else
+        */
 #endif
     /* seize ipv6 as a temporary variable */
     ipv6 = gnrc_pktbuf_start_write(pkt);

@@ -20,7 +20,7 @@
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 #include "net/gnrc/ipv6/ipsec/spd_api_mockup.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #if defined(MODULE_IPV6_ADDR)
@@ -37,9 +37,10 @@ static char addr_str[IPV6_ADDR_MAX_STR_LEN];
 gnrc_pktsnip_t *gnrc_ipv6_hdr_build(gnrc_pktsnip_t *payload, const ipv6_addr_t *src,
                                     const ipv6_addr_t *dst)
 {
-    #ifdef MODULE_GNRC_IPV6_IPSEC
-        int mode = -1; //ESP MODE: (1)TRANSPORT, (2)TUNNEL  is -1 because compiler error in switch case
-        int rounds; //(1)Transport (2)TUNNEL;
+#ifdef MODULE_GNRC_IPV6_IPSEC
+        int tunnel_mode = -1; //ESP MODE: (0)TRANSPORT, (1)TUNNEL
+        int ip_rounds = 0; //(1)Transport (2)TUNNEL;
+        int sp_rule = 0;
         sp_cache_t *sp_entry;
 
         //TODO: analyse payload and fill nh, dp, so
@@ -47,45 +48,45 @@ gnrc_pktsnip_t *gnrc_ipv6_hdr_build(gnrc_pktsnip_t *payload, const ipv6_addr_t *
         uint8_t dp = 0;
         uint8_t sp = 0;
         sp_entry = get_spd_entry(dst, src, nh, dp, sp);
+        if (sp_entry == NULL) {
+            sp_rule = 0;
+        } else {
+            sp_rule = sp_entry->rule;
+        }
 
-        switch(sp_entry->status) {
+        switch(sp_rule) {
             case 0: DEBUG("Discarding IPV6 packet: No SPD rule.\n");
                     gnrc_pktbuf_release(payload);
                     return NULL;
                     break;
-            case 1: mode = sp_entry->sa->mode;
-                    if(mode == 0) { //in (0)Transport mode we only do one round of IPv6 building.
-                    rounds = 1;
-                    payload = esp_header_build(payload, sp_entry);
+            case 1: tunnel_mode = sp_entry->sa->mode;
+                    if(tunnel_mode == 0) { //in (0)Transport tunnel_mode we only do one round of IPv6 building.
+                        ip_rounds = 1;
                     } else {
-                        rounds = 2;
+                        ip_rounds = 2;
                     }
                     break;
-            case 2: rounds = 1;
+            case 2: ip_rounds = 1;
                     break;
             case 3: DEBUG("Discarding IPV6 packet based on SPD rule.\n");
                     gnrc_pktbuf_release(payload);
                     return NULL;
                     break;
-            default: DEBUG("get_spd_status returned invalid value: %i\n", mode);
+            default: DEBUG("get_spd_status returned invalid value: %i\n", tunnel_mode);
                     return NULL;
                     break;
         }
-    #endif /* MODULE_GNRC_IPV6_IPSEC */
+#endif /* MODULE_GNRC_IPV6_IPSEC */
 
     gnrc_pktsnip_t *ipv6;
     ipv6_hdr_t *hdr;
 
-    #ifdef MODULE_GNRC_IPV6_IPSEC
+#ifdef MODULE_GNRC_IPV6_IPSEC
 
         //alternative would be a goto statement... closing brackets at end of function
-        for(uint8_t i = 0; i < rounds; i++) {
-            if( i == 1 ) {
-                //Here the firstly build IPV6 Packet gets compressed in tunnel mode
-                payload = esp_header_build(ipv6, sp_entry);
-            }
+    for(uint8_t i = 0; i < ip_rounds; i++) {
 
-    #endif /* MODULE_GNRC_IPV6_IPSEC */
+#endif /* MODULE_GNRC_IPV6_IPSEC */
 
     ipv6 = gnrc_pktbuf_add(payload, NULL, sizeof(ipv6_hdr_t), HDR_NETTYPE);
 
@@ -126,9 +127,18 @@ gnrc_pktsnip_t *gnrc_ipv6_hdr_build(gnrc_pktsnip_t *payload, const ipv6_addr_t *
     hdr->nh = PROTNUM_RESERVED;
     hdr->hl = 0;
 
-    #ifdef MODULE_GNRC_IPV6_IPSEC //end of ESP for loop
+#ifdef MODULE_GNRC_IPV6_IPSEC //end of ESP for loop
+        if (sp_rule == 2) {
+            return ipv6;
         }
-    #endif
+        ipv6 = esp_header_build(ipv6, sp_entry);
+        if( tunnel_mode == 1) {
+            // TODO: build header with ipv6 as payload not inbetween. We probably need to make changes to ext_hdr_build for this to work
+        }
+    }
+#endif
+
+    DEBUG("TODO: ipv6->nh: %i\n", hdr->nh);
 
     return ipv6;
 }

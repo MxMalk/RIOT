@@ -61,15 +61,15 @@ typedef struct {
     uint32_t max_lt; //max. lifetime (ms)
     uint32_t max_bc; //max. bytecount
     uint8_t rn; //renegotiation flag on maxing out (0)RENEGOTIATE (1)TERMINATE
-    uint8_t mode; //(1)TUNNEL or (0)TRANSPORT
+    uint8_t mode; // (0)TRANSPORT mode, (1)TUNNEL mode
     uint32_t pmtu; //observed path MTU
     ipv6_addr_t tunnel_src; //tunnel destination ipv6
     ipv6_addr_t tunnel_dst; //tunnel source ipv6
 } sa_t;
 
 typedef struct {
-    uint8_t status; //int STATUS: (0)no_entry, (1)PROTECT (2)BYPASS, (3)DISCARD
-    /* sp_type:
+    uint8_t rule; //int STATUS: (1)PROTECT (2)BYPASS, (3)DISCARD
+    /* TODO: sp_type:
      * (0)SPD-I (incomming DISCARD or BYPASS)
      * (1)SPD-O (outgoing DISCARD or BYPASS)
      * (2)SPD-S (outgoing PROTECT) */

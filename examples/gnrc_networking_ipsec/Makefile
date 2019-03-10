@@ -21,6 +21,7 @@ BOARD_INSUFFICIENT_MEMORY := arduino-duemilanove arduino-mega2560 arduino-uno \
 USEMODULE += gnrc_netdev_default
 USEMODULE += auto_init_gnrc_netif
 # Specify the mandatory networking modules for IPv6 and UDP
+USEMODULE += gnrc_ipv6_ext
 USEMODULE += gnrc_ipv6_ipsec
 USEMODULE += gnrc_ipv6_router_default
 USEMODULE += gnrc_udp

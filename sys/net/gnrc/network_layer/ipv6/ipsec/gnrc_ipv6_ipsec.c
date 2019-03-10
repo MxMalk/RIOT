@@ -11,23 +11,38 @@
 #include "net/gnrc.h"
 #include "thread.h"
 #include "net/gnrc/ipv6/hdr.h"
+#include "net/gnrc/ipv6/ext.h"
 #include "net/gnrc/ipv6/ipsec/spd_api_mockup.h"
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *payload, const sp_cache_t *spd_entry) {
+/* TODO: returns pkt at ipv6 header */
+gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const sp_cache_t *spd_entry) {
 	/*TODO: First check if TUNNEL OR TRANSPORT in sad_entry
 	 *
 	 */
-	DEBUG("OUTGOING ESP PACKET:\nSA MODE: %i\nSP STATUS: %i\n", spd_entry->sa->mode, spd_entry->status);
-	return payload;
-}
+	DEBUG("OUTGOING ESP PACKET:\nSA MODE: %i\nSP STATUS: %i\n", spd_entry->sa->mode, spd_entry->rule);
+	/* TODO: Demux different sp and sa infos */
+	int size = 8; /* TODO: bit or byte? Going for byte */
+	gnrc_pktsnip_t *next = pkt->next;
+	ipv6_hdr_t *ipv6 = pkt->data;
+	gnrc_pktsnip_t *ext = NULL;
+	ext = gnrc_ipv6_ext_build(pkt, next, ipv6->nh, size);
+	if(ext == NULL) {
+		DEBUG("ESP: Couldn't build EXT Header\n");
+		return NULL;
+	}
+	ipv6->nh = PROTNUM_IPV6_EXT_ESP;
 
-gnrc_pktsnip_t *esp_header_handler(gnrc_pktsnip_t *payload) {
+	DEBUG("ESP: EXT Header build. PROTNUM of ipv6-nh %i; PROTNUM of nh: %i\n", ipv6->nh, ((ipv6_ext_t *)ext->data)->nh);
+
+	return pkt;
+}
+gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt) {
 	/*TODO: First check if TUNNEL OR TRANSPORT in sad_entry
 	 *
 	 */
 	DEBUG("INCOMMING ESP PACKET:\nHERE BE DRAGONS\n");
-	return payload;
+	return pkt;
 }

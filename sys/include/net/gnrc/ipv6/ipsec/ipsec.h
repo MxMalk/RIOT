@@ -17,8 +17,8 @@
   * @author  Maximilian Malkus <malkus@cip.ifi.lmu.de>
   */
 
-#ifndef NET_GNRC_IPV6_IPSEC
-#define NET_GNRC_IPV6_IPSEC
+#ifndef NET_GNRC_IPV6_IPSEC_H
+#define NET_GNRC_IPV6_IPSEC_H
 
 #include "byteorder.h"
 #include "net/ipv6/addr.h"
@@ -69,11 +69,11 @@ typedef struct __attribute__((packed)) {
 /**
 * @brief   build esp header
 *
-* @param[in] pktsnip, destination, source
+* @param[in] pkt head after ipv6 header build, accompanying spd_entry
 *
-* @return  pktsnip
+* @return  pktsnip at IPv6 with ESP
 */
-gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *payload, const sp_cache_t *spd_entry);
+gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const sp_cache_t *spd_entry);
 
 /**
 * @brief   handle esp header
@@ -82,11 +82,11 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *payload, const sp_cache_t *spd_
 *
 * @return  
 */
-gnrc_pktsnip_t *esp_header_handler(gnrc_pktsnip_t *payload);
+gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt);
 
 /**
  * encrypt_data(gnrc_pktsnip_t *payload);
  * 
  */
 
-#endif /*NET_GNRC_IPV6_IPSEC*/
+#endif /* NET_GNRC_IPV6_IPSEC_H */

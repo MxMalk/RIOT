@@ -35,7 +35,7 @@
 
 #include "net/gnrc/ipv6.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #define _MAX_L2_ADDR_LEN    (8U)
@@ -655,18 +655,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
         return;
     }
 #endif
-#ifdef MODULE_GNRC_IPV6_IPSEC
-//TODO: DEMUX if packet is for this device AND ESP or AH, if not check on SPD, 
-//DISCARD on failure, let it pass on on SUCCESS
-//TODO: should we jump directly to handling ESP or let it run through the basic routines?
-        /*
-        if (gnrc_ipv6_blacklisted(&((ipv6_hdr_t *)(pkt->data))->src)) {
-            DEBUG("ipv6: Source address blacklisted, dropping packet\n");
-            gnrc_pktbuf_release(pkt);
-            return;
-        } else
-        */
-#endif
+
     /* seize ipv6 as a temporary variable */
     ipv6 = gnrc_pktbuf_start_write(pkt);
 
@@ -702,6 +691,35 @@ static void _receive(gnrc_pktsnip_t *pkt)
 
     uint16_t ipv6_len = byteorder_ntohs(hdr->len);
     first_nh = hdr->nh;
+
+/* IPsec Filter rules applied here:
+ * Process/Bypass pkt with ESP header for this host
+ * Apply SPD rules (NONE, BYPASS, DISCARD) for all other traffic */
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    //TODO: DEMUX if packet is for this device AND ESP or AH, if not check on SPD
+
+    /* TODO: Th problem is, that to determine if it is a valid ESP packet we would 
+     * need to mark the headers, but ext header marking happens in code after the Routing
+     * step. So we could pull ext header marking forward as long as the packet is for 
+     * us and then LL_SEARCH_SCALAR to check on SAD entries
+    */
+    /*
+    IF is_esp CHECK for SA entry
+    spd_rule = get_rule(&((ipv6_hdr_t *)(pkt->data))->src);
+    switch( rule )
+    case NULL:
+        DEBUG("ipv6: No SPD rule, dropping packet\n");
+        gnrc_pktbuf_release(pkt);
+        return;
+    }
+    case DISCARD:
+        DEBUG("ipv6: SPD rule DISCARD, dropping packet\n");
+        gnrc_pktbuf_release(pkt);
+        return;
+    case: BYPASS
+        break;
+    */
+#endif
 
     if ((ipv6_len == 0) && (first_nh != PROTNUM_IPV6_NONXT)) {
         /* this doesn't even make sense */
@@ -760,7 +778,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
             else if (!ipv6_addr_is_multicast(&(hdr->dst))) {
                 gnrc_icmpv6_error_dst_unr_send(ICMPV6_ERROR_DST_UNR_ADDR, pkt);
             }
-#endif
+#endif /* MODULE_GNRC_ICMPV6_ERROR */
             gnrc_pktbuf_release(pkt);
             return;
         }
@@ -809,6 +827,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
         DEBUG("ipv6: packet was consumed in extension header handling\n");
         return;
     }
+    /* At this point, all IPv6 headers are marked in pkt */
     _demux(netif, pkt, first_nh);
 }
 

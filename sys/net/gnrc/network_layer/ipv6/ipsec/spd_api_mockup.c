@@ -23,7 +23,7 @@ int spd_init(void) {
     //IKEv2 sa not needed
     sa_t sa1 = {0};
     sad[0] = sa1;
-    sp_cache_t sp1 = {.status=1, .sa=&sad[0]};
+    sp_cache_t sp1 = {.rule=1, .sa=&sad[0]};
     spd[0] = sp1;
     spd_size = 1;
     return 1;
@@ -36,10 +36,15 @@ sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_
     (void)nh;
     (void)dest_port;
     (void)src_port;
-    
+   
     if(spd_size == -1) {        
         spd_init();
     } 
     
+    int no_entry = 0;
+    if (no_entry == 1) {
+        return NULL;
+    }
+
     return &spd[0];
 }

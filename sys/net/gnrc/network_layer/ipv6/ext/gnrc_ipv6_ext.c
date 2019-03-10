@@ -24,6 +24,7 @@
 #include "net/gnrc/icmpv6/error.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/ipv6/ext/rh.h"
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
 
 #include "net/gnrc/ipv6/ext.h"
 
@@ -107,6 +108,9 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
             case PROTNUM_IPV6_EXT_FRAG:
             case PROTNUM_IPV6_EXT_AH:
             case PROTNUM_IPV6_EXT_ESP:
+                /* TODO: Special handling needed for Diet-ESP
+                 * expected fields like ext_hdr->nh won't be there 
+                 */
             case PROTNUM_IPV6_EXT_MOB: {
                 ipv6_ext_t *ext_hdr;
 
@@ -260,6 +264,19 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
         case PROTNUM_IPV6_EXT_FRAG:
         case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_ESP:
+#ifdef MODULE_GNRC_IPV6_IPSEC
+            pkt = esp_header_process(pkt);
+            if( pkt == NULL) {
+                /* TODO: error message */
+                return NULL;
+            }
+            /* TODO: Maybe allready mark it in handling? */
+            if (_mark_extension_header(pkt) == NULL) {
+                        /* routing header couldn't be marked */
+                        return NULL;
+                    }
+            break;
+#endif /* MODULE_GNRC_IPV6_IPSEC */
         case PROTNUM_IPV6_EXT_MOB:
             DEBUG("ipv6_ext: skipping over unsupported extension header\n");
             if (_mark_extension_header(pkt) == NULL) {
@@ -286,13 +303,19 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_build(gnrc_pktsnip_t *ipv6, gnrc_pktsnip_t *next,
     }
 
     if (ipv6 != NULL) {
+        /* We do want to account for existing ext headers, so we
+         * search for a pkt_snip with a "next" field identical 
+         * to *next snip and put the pointer into prev. 
+         * Note: The first next isn't a variable in this call*/
         LL_SEARCH_SCALAR(ipv6, prev, next, next);
 
+        /* no correct result found*/
         if (prev == NULL) {
             return NULL;
         }
     }
 
+    /* malloc new snip with @ next as next snip */
     snip = gnrc_pktbuf_add(next, NULL, size, GNRC_NETTYPE_IPV6);
 
     if (snip == NULL) {
@@ -310,6 +333,7 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_build(gnrc_pktsnip_t *ipv6, gnrc_pktsnip_t *next,
         ext->len = (size / IPV6_EXT_LEN_UNIT) - 1;
     }
 
+    /* attach ext header to IPv6 header */
     if (prev != NULL) {
         prev->next = snip;
     }

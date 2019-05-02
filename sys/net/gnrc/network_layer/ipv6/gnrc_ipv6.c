@@ -11,6 +11,8 @@
  *
  * @file
  */
+#include "net/ipv6/addr.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -35,7 +37,7 @@
 
 #include "net/gnrc/ipv6.h"
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 #define _MAX_L2_ADDR_LEN    (8U)
@@ -173,6 +175,7 @@ static void *_event_loop(void *args)
     msg_init_queue(msg_q, GNRC_IPV6_MSG_QUEUE_SIZE);
 
     /* register interest in all IPv6 packets */
+//TODO: ifdef different NETTYPE on IPSEC Module
     gnrc_netreg_register(GNRC_NETTYPE_IPV6, &me_reg);
 
     /* preinitialize ACK */
@@ -238,6 +241,24 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         gnrc_pktbuf_release_error(pkt, EMSGSIZE);
         return;
     }
+    
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    /* TODO: 
+     * if we want to dig in here, we have to find the ipv6 header in this pkt
+     * unwrap pkt
+     * check SPD
+     * build ext_esp header
+     *  */
+    gnrc_pktsnip_t *snip;
+    LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
+    ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)snip->data);
+    static char addr_str[IPV6_ADDR_MAX_STR_LEN];
+    ipv6_addr_to_str(addr_str, &ipv6->src, sizeof(addr_str));
+    DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. SRC: %s\n", addr_str);
+    ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
+    DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. DST: %s\n", addr_str);
+#endif
+
 #ifdef MODULE_NETSTATS_IPV6
     netif->ipv6.stats.tx_success++;
     netif->ipv6.stats.tx_bytes += gnrc_pkt_len(pkt->next);
@@ -691,35 +712,6 @@ static void _receive(gnrc_pktsnip_t *pkt)
 
     uint16_t ipv6_len = byteorder_ntohs(hdr->len);
     first_nh = hdr->nh;
-
-/* IPsec Filter rules applied here:
- * Process/Bypass pkt with ESP header for this host
- * Apply SPD rules (NONE, BYPASS, DISCARD) for all other traffic */
-#ifdef MODULE_GNRC_IPV6_IPSEC
-    //TODO: DEMUX if packet is for this device AND ESP or AH, if not check on SPD
-
-    /* TODO: Th problem is, that to determine if it is a valid ESP packet we would 
-     * need to mark the headers, but ext header marking happens in code after the Routing
-     * step. So we could pull ext header marking forward as long as the packet is for 
-     * us and then LL_SEARCH_SCALAR to check on SAD entries
-    */
-    /*
-    IF is_esp CHECK for SA entry
-    spd_rule = get_rule(&((ipv6_hdr_t *)(pkt->data))->src);
-    switch( rule )
-    case NULL:
-        DEBUG("ipv6: No SPD rule, dropping packet\n");
-        gnrc_pktbuf_release(pkt);
-        return;
-    }
-    case DISCARD:
-        DEBUG("ipv6: SPD rule DISCARD, dropping packet\n");
-        gnrc_pktbuf_release(pkt);
-        return;
-    case: BYPASS
-        break;
-    */
-#endif
 
     if ((ipv6_len == 0) && (first_nh != PROTNUM_IPV6_NONXT)) {
         /* this doesn't even make sense */

@@ -89,4 +89,8 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt);
  * 
  */
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* NET_GNRC_IPV6_IPSEC_H */

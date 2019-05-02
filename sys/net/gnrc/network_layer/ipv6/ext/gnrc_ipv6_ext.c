@@ -259,10 +259,6 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
             break;
 #endif  /* MODULE_GNRC_IPV6_EXT_RH */
 
-        case PROTNUM_IPV6_EXT_HOPOPT:
-        case PROTNUM_IPV6_EXT_DST:
-        case PROTNUM_IPV6_EXT_FRAG:
-        case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_ESP:
 #ifdef MODULE_GNRC_IPV6_IPSEC
             pkt = esp_header_process(pkt);
@@ -277,6 +273,10 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
                     }
             break;
 #endif /* MODULE_GNRC_IPV6_IPSEC */
+        case PROTNUM_IPV6_EXT_HOPOPT:
+        case PROTNUM_IPV6_EXT_DST:
+        case PROTNUM_IPV6_EXT_FRAG:
+        case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_MOB:
             DEBUG("ipv6_ext: skipping over unsupported extension header\n");
             if (_mark_extension_header(pkt) == NULL) {

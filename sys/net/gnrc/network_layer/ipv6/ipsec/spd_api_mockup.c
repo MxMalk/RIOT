@@ -15,6 +15,13 @@
 #define SPD_SIZE (10)
 #define SAD_SIZE (10)
 
+/* TODO:
+ * GOALS:
+ * we make a mockup that workd like a manual SPD entered database.
+ * # No IKEv2 rules needed
+ * # 
+ * 
+ */
 sp_cache_t spd[SPD_SIZE];
 sa_t sad[SAD_SIZE];
 int spd_size = -1;

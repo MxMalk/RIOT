@@ -28,6 +28,9 @@ static char _stack[GNRC_IPSEC_STACK_SIZE];
 /* Main event loop for IPsec */
 static void *_event_loop(void *args);
 
+/*IPv6 printing function*/
+static void _ipv6_print_info(gnrc_pktsnip_t *pkt);
+
 kernel_pid_t gnrc_ipsec_init(void) {
     if (_pid > KERNEL_PID_UNDEF) {
         return _pid;
@@ -84,7 +87,24 @@ static void _check_loop_WIP(void)
    return;
 }
 
-static void print_address(gnrc_pktsnip_t *pkt)
+bool gnrc_ipsec_filter(gnrc_pktsnip_t *pkt, uint8_t mode) {
+    if(mode == GNRC_IPSEC_RCV) {
+        _ipv6_print_info(pkt);
+    }
+    if(mode == GNRC_IPSEC_SND) {
+        gnrc_pktsnip_t *snip;
+        snip = NULL;
+        LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
+        printf("IPV6_SND: NH = %i\n", gnrc_nettype_to_protnum(snip->next->type));
+    }
+#if 0
+    return 1;
+#endif
+    return 0;
+}
+
+
+static void _ipv6_print_info(gnrc_pktsnip_t *pkt)
 {
     gnrc_pktsnip_t *snip;
     LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
@@ -94,7 +114,9 @@ static void print_address(gnrc_pktsnip_t *pkt)
     DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. SRC: %s\n", addr_str);
     ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
     DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. DST: %s\n", addr_str);
+    printf("IPV6_RCV: NH = %u\n", ipv6->nh);
 }
+
 
 static void *_event_loop(void *args)
 {
@@ -114,29 +136,33 @@ static void *_event_loop(void *args)
     /* start event loop */
     while (1) {
         pkt=NULL;
+        //gnrc_pktsnip_t *tmp;
         msg_receive(&msg);
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 pkt = msg.content.ptr;
-                printf("esp: pkt-snip-type: %i\n", pkt->type);
-                DEBUG("esp: GNRC_NETAPI_MSG_TYPE_RCV received. BREAKING\n");                
+                printf("esp_rcv: pkt-snip-type: %i\n", pkt->type);
+                DEBUG("esp: GNRC_NETAPI_MSG_TYPE_RCV\n");
                 //_receive(msg.content.ptr);
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
                 pkt = msg.content.ptr;
-                printf("esp: pkt-snip-type: %i\n", pkt->type);
-                DEBUG("esp: GNRC_NETAPI_MSG_TYPE_SND received. BREAKING\n");
+                printf("esp_snd: pkt-snip-type: %i\n", pkt->type);
+                DEBUG("esp: GNRC_NETAPI_MSG_TYPE_SND\n");
                 //_send(msg.content.ptr, true);
                 break;
                 
             default:
                 pkt = msg.content.ptr;
-                printf("esp: pkt-snip-type: %i\n", pkt->type);
-                DEBUG("esp: default/unknown received. BREAKING\n");
+                printf("esp_df: pkt-snip-type: %i\n", pkt->type);
+                DEBUG("esp: default/unknown received.\n");
                 break;
         }
+
+
+        gnrc_pktbuf_release(pkt);
     }
 
     return NULL;

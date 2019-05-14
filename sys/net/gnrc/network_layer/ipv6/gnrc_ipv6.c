@@ -25,7 +25,7 @@
 #include "net/gnrc/icmpv6.h"
 #include "net/gnrc/sixlowpan/ctx.h"
 #include "net/gnrc/sixlowpan/nd.h"
-#include "net/gnrc/ipv6/ipsec/spd_api_mockup.h"
+#include "net/gnrc/ipv6/ipsec/thread_test.h"
 #include "net/protnum.h"
 #include "thread.h"
 #include "utlist.h"
@@ -189,11 +189,27 @@ static void *_event_loop(void *args)
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 DEBUG("ipv6: GNRC_NETAPI_MSG_TYPE_RCV received\n");
+#ifdef MODULE_GNRC_IPV6_IPSEC
+                if (gnrc_ipsec_filter(msg.content.ptr, GNRC_IPSEC_RCV) == 1) {
+                    printf("IPSEC_RCV DISCARD\n");
+                    gnrc_pktbuf_release(msg.content.ptr);
+                    break;
+                }
+                printf("IPSEC_RCV BYPASS/PROTECT\n");            
+#endif
                 _receive(msg.content.ptr);
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
                 DEBUG("ipv6: GNRC_NETAPI_MSG_TYPE_SND received\n");
+#ifdef MODULE_GNRC_IPV6_IPSEC
+                if (gnrc_ipsec_filter(msg.content.ptr, GNRC_IPSEC_SND) == 1) {
+                    printf("IPSEC_RCV DISCARD\n");
+                    gnrc_pktbuf_release(msg.content.ptr);
+                    break;
+                }
+                printf("IPSEC_RCV BYPASS/PROTECT\n");
+#endif
                 _send(msg.content.ptr, true);
                 break;
 
@@ -241,23 +257,6 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         gnrc_pktbuf_release_error(pkt, EMSGSIZE);
         return;
     }
-    
-#ifdef MODULE_GNRC_IPV6_IPSEC
-    /* TODO: 
-     * if we want to dig in here, we have to find the ipv6 header in this pkt
-     * unwrap pkt
-     * check SPD
-     * build ext_esp header
-     *  */
-    gnrc_pktsnip_t *snip;
-    LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
-    ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)snip->data);
-    static char addr_str[IPV6_ADDR_MAX_STR_LEN];
-    ipv6_addr_to_str(addr_str, &ipv6->src, sizeof(addr_str));
-    DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. SRC: %s\n", addr_str);
-    ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
-    DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. DST: %s\n", addr_str);
-#endif
 
 #ifdef MODULE_NETSTATS_IPV6
     netif->ipv6.stats.tx_success++;

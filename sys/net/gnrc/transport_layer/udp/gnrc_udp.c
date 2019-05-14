@@ -31,7 +31,7 @@
 #include "net/inet_csum.h"
 
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 /**
@@ -218,8 +218,6 @@ static void _send(gnrc_pktsnip_t *pkt)
         DEBUG("udp: cannot send packet: network layer not found\n");
         gnrc_pktbuf_release(pkt);
     }
-    //TODO: remove this after development:
-    DEBUG("UDP Dispatch - Target Type: %i\n", target_type);
 }
 
 static void *_event_loop(void *arg)

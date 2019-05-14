@@ -12,11 +12,21 @@
 
 #include "kernel_types.h"
 
-/**
- * @brief   Default priority for the 6LoWPAN thread.
- */
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+/**
+ * @brief   Message recieve flag
+ */
+#ifndef GNRC_IPSEC_RCV   
+#define GNRC_IPSEC_RCV   0
+#endif
+/**
+ * @brief   Message send flag
+ */
+#ifndef GNRC_IPSEC_SND
+#define GNRC_IPSEC_SND   1
 #endif
 
 /**
@@ -47,6 +57,15 @@ extern "C" {
 #endif
 
 kernel_pid_t gnrc_ipsec_init(void);
+
+/**
+* @brief   build esp header
+*
+* @param[in] pkt head after ipv6 header build, accompanying spd_entry
+*
+* @return  pktsnip at IPv6 with ESP
+*/
+bool gnrc_ipsec_filter(gnrc_pktsnip_t *pkt, uint8_t mode);
 
 #ifdef __cplusplus
 }

@@ -42,6 +42,11 @@ kernel_pid_t gnrc_ipsec_init(void) {
     return _pid;
 }
 
+gnrc_pktsnip_t *gnrc_ipsec_handle_esp(gnrc_pktsnip_t *pkt) {
+    //TODO EXT header processing and stripping
+    return pkt;
+}
+
 static void _check_loop_WIP(void)
 {
     /*
@@ -87,20 +92,17 @@ static void _check_loop_WIP(void)
    return;
 }
 
-bool gnrc_ipsec_filter(gnrc_pktsnip_t *pkt, uint8_t mode) {
+FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode) {
     if(mode == GNRC_IPSEC_RCV) {
-        _ipv6_print_info(pkt);
+        (void)pkt;
     }
     if(mode == GNRC_IPSEC_SND) {
-        gnrc_pktsnip_t *snip;
-        snip = NULL;
-        LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
-        printf("IPV6_SND: NH = %i\n", gnrc_nettype_to_protnum(snip->next->type));
+        (void)pkt;
     }
 #if 0
-    return 1;
+    return GNRC_IPSEC_DISCARD;
 #endif
-    return 0;
+    return GNRC_IPSEC_BYPASS;
 }
 
 
@@ -110,11 +112,15 @@ static void _ipv6_print_info(gnrc_pktsnip_t *pkt)
     LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
     ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)snip->data);
     static char addr_str[IPV6_ADDR_MAX_STR_LEN];
-    ipv6_addr_to_str(addr_str, &ipv6->src, sizeof(addr_str));
-    DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. SRC: %s\n", addr_str);
+    static char addr_str2[IPV6_ADDR_MAX_STR_LEN];
     ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
-    DEBUG("ESP: ifdef in gnrc_ipv6.c read ipv6 header. DST: %s\n", addr_str);
-    printf("IPV6_RCV: NH = %u\n", ipv6->nh);
+    ipv6_addr_to_str(addr_str2, &ipv6->src, sizeof(addr_str2));
+    DEBUG("ipsec: SRC: %s   DST: %s  ipv6NH: %i ", addr_str, addr_str2, (int)ipv6->nh);
+    if (snip->next != NULL) {
+        DEBUG("snipNH: %i\n", gnrc_nettype_to_protnum(snip->next->type));
+    } else {
+        DEBUG("\n");
+    }
 }
 
 
@@ -129,10 +135,10 @@ static void *_event_loop(void *args)
     gnrc_pktsnip_t *pkt=NULL;
 
     /* register interest in all IPV6 packets */
-    gnrc_netreg_register(GNRC_NETTYPE_IPV6, &me_reg);
+    gnrc_netreg_register(GNRC_NETTYPE_IPSEC, &me_reg);
     
     //TODO: remove
-    DEBUG("esp: up and running\n");
+    DEBUG("ipsec_tread: up and running\n");
     /* start event loop */
     while (1) {
         pkt=NULL;
@@ -141,23 +147,19 @@ static void *_event_loop(void *args)
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                pkt = msg.content.ptr;
-                printf("esp_rcv: pkt-snip-type: %i\n", pkt->type);
-                DEBUG("esp: GNRC_NETAPI_MSG_TYPE_RCV\n");
+                DEBUG("ipsec_tread: GNRC_NETAPI_MSG_TYPE_RCV\n");
+                _ipv6_print_info(msg.content.ptr);
                 //_receive(msg.content.ptr);
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
-                pkt = msg.content.ptr;
-                printf("esp_snd: pkt-snip-type: %i\n", pkt->type);
-                DEBUG("esp: GNRC_NETAPI_MSG_TYPE_SND\n");
+                DEBUG("ipsec_tread: GNRC_NETAPI_MSG_TYPE_SND\n");
+                _ipv6_print_info(msg.content.ptr);
                 //_send(msg.content.ptr, true);
                 break;
                 
             default:
-                pkt = msg.content.ptr;
-                printf("esp_df: pkt-snip-type: %i\n", pkt->type);
-                DEBUG("esp: default/unknown received.\n");
+                DEBUG("ipsec_tread: default/unknown received.\n");
                 break;
         }
 

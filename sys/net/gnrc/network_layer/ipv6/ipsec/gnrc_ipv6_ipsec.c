@@ -46,3 +46,14 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt) {
 	DEBUG("INCOMMING ESP PACKET:\nHERE BE DRAGONS\n");
 	return pkt;
 }
+
+void gnrc_ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
+    gnrc_pktsnip_t *snip = pkt;
+    int i = 0;
+
+    while(snip != NULL) {
+        printf("snip %i: protnum: %i size: %i\n", i, gnrc_nettype_to_protnum(snip->type), snip->size);
+		snip = snip->next;
+        i++;
+    }
+}

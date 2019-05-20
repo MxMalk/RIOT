@@ -7,12 +7,14 @@
  */
 
  /**
-  * @defgroup    net_gnrc_ipv6_esp_hdr IPv6 header defintions
+  * @defgroup    net_gnrc_ipv6_ipsec_esp_hdr Esp Header
   * @ingroup     net_gnrc_ipv6_ipsec
+  * @brief       IPsec ESP header definitions and routines
+  * 
   * @{
   *
   * @file
-  * @brief   IPv6 IPsec structures and fuctions
+  * @brief   IPv6 ESP structures and fuctions
   *
   * @author  Maximilian Malkus <malkus@cip.ifi.lmu.de>
   */
@@ -88,6 +90,10 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt);
  * encrypt_data(gnrc_pktsnip_t *payload);
  * 
  */
+
+//TODO: move or remove after DEV
+void gnrc_ipsec_show_pkt(gnrc_pktsnip_t *pkt);
+
 
 #ifdef __cplusplus
 }

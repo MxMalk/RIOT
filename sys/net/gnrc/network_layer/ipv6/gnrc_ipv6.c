@@ -25,7 +25,10 @@
 #include "net/gnrc/icmpv6.h"
 #include "net/gnrc/sixlowpan/ctx.h"
 #include "net/gnrc/sixlowpan/nd.h"
+
 #include "net/gnrc/ipv6/ipsec/thread_test.h"
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
+
 #include "net/protnum.h"
 #include "thread.h"
 #include "utlist.h"
@@ -138,6 +141,10 @@ ipv6_hdr_t *gnrc_ipv6_get_header(gnrc_pktsnip_t *pkt)
 static void _dispatch_next_header(gnrc_pktsnip_t *pkt, unsigned nh,
                                   bool interested)
 {
+    //TODO: romev this; IPSEC DEV
+        printf("_dispatch_next_header @ start -> pkt:\n");
+        gnrc_ipsec_show_pkt(pkt);
+
     const bool has_nh_subs = (gnrc_netreg_num(GNRC_NETTYPE_IPV6, nh) > 0) ||
                              interested;
 
@@ -175,7 +182,6 @@ static void *_event_loop(void *args)
     msg_init_queue(msg_q, GNRC_IPV6_MSG_QUEUE_SIZE);
 
     /* register interest in all IPv6 packets */
-//TODO: ifdef different NETTYPE on IPSEC Module
     gnrc_netreg_register(GNRC_NETTYPE_IPV6, &me_reg);
 
     /* preinitialize ACK */
@@ -188,28 +194,18 @@ static void *_event_loop(void *args)
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
+                //TODO: remove
+                    printf("ipv6_RCV: _event_loop  msg.content.ptr:\n");
+                    gnrc_ipsec_show_pkt(msg.content.ptr);
                 DEBUG("ipv6: GNRC_NETAPI_MSG_TYPE_RCV received\n");
-#ifdef MODULE_GNRC_IPV6_IPSEC
-                if (gnrc_ipsec_filter(msg.content.ptr, GNRC_IPSEC_RCV) == 1) {
-                    printf("IPSEC_RCV DISCARD\n");
-                    gnrc_pktbuf_release(msg.content.ptr);
-                    break;
-                }
-                printf("IPSEC_RCV BYPASS/PROTECT\n");            
-#endif
                 _receive(msg.content.ptr);
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
+                //TODO: remove
+                    printf("ipv6_SND: _event_loop  msg.content.ptr:\n");
+                    gnrc_ipsec_show_pkt(msg.content.ptr);
                 DEBUG("ipv6: GNRC_NETAPI_MSG_TYPE_SND received\n");
-#ifdef MODULE_GNRC_IPV6_IPSEC
-                if (gnrc_ipsec_filter(msg.content.ptr, GNRC_IPSEC_SND) == 1) {
-                    printf("IPSEC_RCV DISCARD\n");
-                    gnrc_pktbuf_release(msg.content.ptr);
-                    break;
-                }
-                printf("IPSEC_RCV BYPASS/PROTECT\n");
-#endif
                 _send(msg.content.ptr, true);
                 break;
 
@@ -258,6 +254,30 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         return;
     }
 
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
+        case GNRC_IPSEC_BYPASS:
+            break;
+        case GNRC_IPSEC_DISCARD:
+            printf("ipsec: SND DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+        case GNRC_IPSEC_PROTECT:
+        /*pkt is handed to ipsec_thread*/
+            DEBUG("ipsec: send to IPsec thread\n");
+            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPSEC, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+                DEBUG("ipsec: no IPsec thread found\n");
+                gnrc_pktbuf_release(pkt);
+            }
+            return;
+        default:
+            DEBUG("SPD check returned no result. Discarding packet.\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+    }
+    printf("ipsec: SND BYPASS\n");
+#endif
+
 #ifdef MODULE_NETSTATS_IPV6
     netif->ipv6.stats.tx_success++;
     netif->ipv6.stats.tx_bytes += gnrc_pkt_len(pkt->next);
@@ -273,6 +293,7 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         return;
     }
 #endif
+
     if (gnrc_netapi_send(netif->pid, pkt) < 1) {
         DEBUG("ipv6: unable to send packet\n");
         gnrc_pktbuf_release(pkt);
@@ -534,7 +555,11 @@ static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
     }
 
     DEBUG("ipv6: packet is addressed to myself => loopback\n");
-
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    //TODO: do we need to filter Loopback traffic? If yes we need to do it here.
+        printf("ipsec: SELF send to self\n");
+        gnrc_ipsec_show_pkt(pkt);
+#endif
     if (gnrc_netapi_dispatch_receive(GNRC_NETTYPE_IPV6,
                                      GNRC_NETREG_DEMUX_CTX_ALL,
                                      pkt) == 0) {
@@ -640,6 +665,29 @@ static void _receive(gnrc_pktsnip_t *pkt)
     uint8_t first_nh;
 
     assert(pkt != NULL);
+
+    //TODO: romev this; IPSEC DEV
+        printf("_recieve @ start -> pkt:\n");
+        gnrc_ipsec_show_pkt(pkt);
+
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
+        case GNRC_IPSEC_BYPASS:
+            break;
+        case GNRC_IPSEC_DISCARD:
+            printf("ipsec: RCV DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+        case GNRC_IPSEC_PROTECT:
+            /*pkt contains ESP header and will be checked in ext header handling */
+            break;
+        default:
+            DEBUG("SPD check returned no result. Discarding packet.\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+    }
+    printf("ipsec: RCV BYPASS/PROTECT\n");            
+#endif
 
     netif_hdr = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
 

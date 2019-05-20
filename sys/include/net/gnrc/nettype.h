@@ -52,10 +52,6 @@ typedef enum {
     GNRC_NETTYPE_NETIF = -1,
     GNRC_NETTYPE_UNDEF = 0,     /**< Protocol is undefined */
 
-#ifdef MODULE_GNRC_SIXLOWPAN
-    GNRC_NETTYPE_SIXLOWPAN,     /**< Protocol is 6LoWPAN */
-#endif
-
     /**
      * @{
      * @name Link layer
@@ -63,14 +59,6 @@ typedef enum {
 #ifdef MODULE_GNRC_GOMACH
     GNRC_NETTYPE_GOMACH,         /**< Protocol is GoMacH */
 #endif
-    /**
-     * @}
-     */
-
-    /**
-     * @{
-     * @name Link layer
-     */
 #ifdef MODULE_GNRC_LWMAC
     GNRC_NETTYPE_LWMAC,          /**< Protocol is lwMAC */
 #endif
@@ -88,8 +76,14 @@ typedef enum {
 #ifdef MODULE_GNRC_IPV6_EXT
     GNRC_NETTYPE_IPV6_EXT,      /**< Protocol is IPv6 extension header */
 #endif
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    GNRC_NETTYPE_IPSEC,          /**< Protocol is IPSEC */
+#endif
 #ifdef MODULE_GNRC_ICMPV6
     GNRC_NETTYPE_ICMPV6,        /**< Protocol is ICMPv6 */
+#endif
+#ifdef MODULE_GNRC_SIXLOWPAN
+    GNRC_NETTYPE_SIXLOWPAN,     /**< Protocol is 6LoWPAN */
 #endif
     /**
      * @}

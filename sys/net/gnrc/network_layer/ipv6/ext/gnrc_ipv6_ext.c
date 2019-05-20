@@ -24,7 +24,9 @@
 #include "net/gnrc/icmpv6/error.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/ipv6/ext/rh.h"
+
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
+#include "net/gnrc/ipv6/ipsec/thread_test.h"
 
 #include "net/gnrc/ipv6/ext.h"
 
@@ -100,6 +102,7 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_hopopt(gnrc_pktsnip_t *pkt,
 gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
                                           uint8_t *protnum)
 {
+
     bool is_ext = true;
     while (is_ext) {
         switch (*protnum) {
@@ -108,12 +111,8 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
             case PROTNUM_IPV6_EXT_FRAG:
             case PROTNUM_IPV6_EXT_AH:
             case PROTNUM_IPV6_EXT_ESP:
-                /* TODO: Special handling needed for Diet-ESP
-                 * expected fields like ext_hdr->nh won't be there 
-                 */
             case PROTNUM_IPV6_EXT_MOB: {
                 ipv6_ext_t *ext_hdr;
-
                 DEBUG("ipv6: handle extension header (protnum = %u)\n",
                       *protnum);
                 ext_hdr = pkt->data;
@@ -195,6 +194,7 @@ static inline bool _has_valid_size(gnrc_pktsnip_t *pkt, uint8_t protnum)
         case PROTNUM_IPV6_EXT_FRAG:
         case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_ESP:
+        //TODO: Is DietESP usinf 'invalid' sizes?
         case PROTNUM_IPV6_EXT_MOB:
             return ((ext->len * IPV6_EXT_LEN_UNIT) + IPV6_EXT_LEN_UNIT) <= pkt->size;
 
@@ -262,13 +262,16 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
         case PROTNUM_IPV6_EXT_ESP:
 #ifdef MODULE_GNRC_IPV6_IPSEC
             pkt = esp_header_process(pkt);
+            pkt = gnrc_ipsec_handle_esp(pkt);
+            /* IF tunnel -> drop processed packet into ipv6_msg_queue again and release pkt? */
             if( pkt == NULL) {
                 /* TODO: error message */
                 return NULL;
             }
-            /* TODO: Maybe allready mark it in handling? */
+            /* TODO: Con this code go? 
+             * ...Maybe allready mark it in handling? */
             if (_mark_extension_header(pkt) == NULL) {
-                        /* routing header couldn't be marked */
+                        /* header couldn't be marked */
                         return NULL;
                     }
             break;

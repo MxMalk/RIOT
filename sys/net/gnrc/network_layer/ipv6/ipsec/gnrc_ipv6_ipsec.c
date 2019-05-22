@@ -6,13 +6,15 @@
  * directory for more details.
  */
 
-#include "net/gnrc/ipv6/ipsec/ipsec.h"
 #include "net/ipv6/addr.h"
 #include "net/gnrc.h"
 #include "thread.h"
 #include "net/gnrc/ipv6/hdr.h"
 #include "net/gnrc/ipv6/ext.h"
 #include "net/gnrc/ipv6/ipsec/spd_api_mockup.h"
+#include "net/gnrc/ipv6/ipsec/thread_test.h"
+
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"

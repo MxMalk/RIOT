@@ -28,7 +28,10 @@ static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
 extern int udp_cmd(int argc, char **argv);
 
+extern int ipsec_sad_frm(int argc, char **argv);
+
 static const shell_command_t shell_commands[] = {
+    { "dbfrm", "add and edit IPsec databases entries at runtime", ipsec_sad_frm },
     { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
     { NULL, NULL, NULL }
 };

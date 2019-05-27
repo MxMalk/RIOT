@@ -58,3 +58,6 @@ Makefile.local
 
 # scan-build artifacts
 scan-build/
+
+#VS solution files
+.vs\

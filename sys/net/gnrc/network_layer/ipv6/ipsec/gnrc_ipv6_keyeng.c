@@ -7,7 +7,8 @@
  */
 
 #include <stdio.h>
-#include "net/gnrc/ipv6/ipsec/spd_api_mockup.h"
+#include "net/gnrc/ipv6/ipsec/key_engine.h"
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
 
 #define ENABLE_DEBUG    (0)
 #include "debug.h"

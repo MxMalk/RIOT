@@ -60,4 +60,4 @@ Makefile.local
 scan-build/
 
 #VS solution files
-.vs\
+.vs/

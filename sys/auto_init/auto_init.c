@@ -37,7 +37,8 @@
 #endif
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-#include "net/gnrc/ipv6/ipsec/thread_test.h"
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
+#include "net/gnrc/ipv6/ipsec/keyengine.h"
 #endif
 
 #ifdef MODULE_L2_PING
@@ -130,8 +131,9 @@ void auto_init(void)
     gnrc_ipv6_init();
 #endif
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    DEBUG("Auto init gnrc_ipsec module.\n");
+    DEBUG("Auto init gnrc_ipsec modules.\n");
     gnrc_ipsec_init();
+    gnrc_ipsec_keyengine_init();
 #endif
 #ifdef MODULE_GNRC_UDP
     DEBUG("Auto init UDP module.\n");

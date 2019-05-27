@@ -30,6 +30,7 @@
 
 
 #include "kernel_types.h"
+#include "net/gnrc/pkt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,21 +68,21 @@ typedef enum FilterRule {
  * @{
  */
 /**
- * @brief   Default stack size to use for the IPSEC thread
+ * @brief   Default stack size to use for the IPsec thread
  */
 #ifndef GNRC_IPSEC_STACK_SIZE
 #define GNRC_IPSEC_STACK_SIZE        (THREAD_STACKSIZE_DEFAULT)
 #endif
 
 /**
- * @brief   Default priority for the IPSEC thread
+ * @brief   Default priority for the IPsec thread
  */
 #ifndef GNRC_IPSEC_PRIO
 #define GNRC_IPSEC_PRIO             (THREAD_PRIORITY_MAIN - 3)
 #endif
 
 /**
- * @brief   Default message queue size to use for the IPSEC thread.
+ * @brief   Default message queue size to use for the IPsec thread.
  */
 #ifndef GNRC_IPSEC_MSG_QUEUE_SIZE
 #define GNRC_IPSEC_MSG_QUEUE_SIZE   (8U)
@@ -94,7 +95,7 @@ typedef enum FilterRule {
  * @return  The PID to the IPsec thread, on success.
  * @return  a negative errno on error.
  * @return  -EOVERFLOW, if there are too many threads running already
- * @return  -EEXIST, if IPv6 was already initialized.
+ * @return  -EEXIST, if IPsec was already initialized.
  */
 kernel_pid_t gnrc_ipsec_init(void);
 

@@ -26,7 +26,7 @@
 #include "net/gnrc/ipv6/ext/rh.h"
 
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
-#include "net/gnrc/ipv6/ipsec/thread_test.h"
+#include "net/gnrc/ipv6/ipsec/esp.h"
 
 #include "net/gnrc/ipv6/ext.h"
 

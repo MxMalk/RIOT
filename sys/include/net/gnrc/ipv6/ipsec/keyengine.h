@@ -41,10 +41,54 @@
   * @author  Maximilian Malkus <malkus@cip.ifi.lmu.de>
   */
 
- #ifndef SPD_DUMMY
- #define SPD_DUMMY
+ #ifndef NET_GNRC_IPV6_IPSEC_KEYENGINE
+ #define NET_GNRC_IPV6_IPSEC_KEYENGINE
 
+#include "kernel_types.h"
 #include "net/ipv6/addr.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @defgroup    net_gnrc_ipv6_ipsec_keyengine 
+ * @ingroup     net_gnrc_ipv6
+ * @ingroup     config
+ * @{
+ */
+/**
+ * @brief   Default stack size to use for the IPsec Keyengine thread
+ */
+#ifndef GNRC_IPSEC_STACK_SIZE
+#define GNRC_IPSEC_STACK_SIZE        (THREAD_STACKSIZE_DEFAULT)
+#endif
+
+/**
+ * @brief   Default priority for the IPsec Keyengine thread
+ */
+#ifndef GNRC_IPSEC_PRIO
+#define GNRC_IPSEC_PRIO             (THREAD_PRIORITY_MAIN - 3)
+#endif
+
+/**
+ * @brief   Default message queue size to use for the IPsec Keyengine thread.
+ */
+#ifndef GNRC_IPSEC_MSG_QUEUE_SIZE
+#define GNRC_IPSEC_MSG_QUEUE_SIZE   (8U)
+#endif
+
+
+/**
+ * @brief   Initialization of the IPsec Keyengine thread.
+ *
+ * @return  The PID to the IPsec Keyengine thread, on success.
+ * @return  a negative errno on error.
+ * @return  -EOVERFLOW, if there are too many threads running already
+ * @return  -EEXIST, if Thread was already initialized.
+ */
+kernel_pid_t gnrc_ipsec_keyengine_init(void);
+
 
 typedef struct {
     uint32_t spi; //security parameter index
@@ -92,4 +136,10 @@ typedef struct {
 */
 sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port);
 
- #endif
+
+#ifdef __cplusplus
+}
+#endif 
+
+
+#endif /*NET_GNRC_IPV6_IPSEC_KEYENGINE*/

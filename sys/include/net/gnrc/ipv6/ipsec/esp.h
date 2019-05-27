@@ -26,6 +26,9 @@
 #include "net/gnrc/pkt.h"
 #include <stdint.h>
 
+#include "net/gnrc/ipv6/ipsec/keyengine.h"
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

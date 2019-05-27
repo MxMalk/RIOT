@@ -7,7 +7,7 @@
  */
 
 #include <stdio.h>
-#include "net/gnrc/ipv6/ipsec/key_engine.h"
+#include "net/gnrc/ipv6/ipsec/keyengine.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 
 #define ENABLE_DEBUG    (0)
@@ -16,16 +16,31 @@
 #define SPD_SIZE (10)
 #define SAD_SIZE (10)
 
-/* TODO:
- * GOALS:
- * we make a mockup that workd like a manual SPD entered database.
- * # No IKEv2 rules needed
- * # 
- * 
- */
 sp_cache_t spd[SPD_SIZE];
 sa_t sad[SAD_SIZE];
 int spd_size = -1;
+
+static kernel_pid_t _pid = KERNEL_PID_UNDEF;
+
+#if ENABLE_DEBUG
+static char _stack[GNRC_IPSEC_STACK_SIZE + THREAD_EXTRA_STACKSIZE_PRINTF];
+#else
+static char _stack[GNRC_IPSEC_STACK_SIZE];
+#endif
+
+/* Main event loop for keyengine */
+static void *_event_loop(void *args);
+
+kernel_pid_t gnrc_ipsec_keyengine_init(void) {
+    if (_pid > KERNEL_PID_UNDEF) {
+        return _pid;
+    }
+
+    _pid = thread_create(_stack, sizeof(_stack), GNRC_IPSEC_PRIO,
+                         THREAD_CREATE_STACKTEST, _event_loop, NULL, "keyengine");
+
+    return _pid;
+}
 
 int spd_init(void) {
     //IKEv2 sa not needed
@@ -55,4 +70,19 @@ sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_
     }
 
     return &spd[0];
+}
+
+
+static void *_event_loop(void *args) {
+
+    //TODO: create waiting for msg()
+    //Howto wait for ipsec AND pfkey requests/responses?
+
+    while (1) {
+        thread_sleep();
+    }
+
+    (void)args;
+
+    return NULL;
 }

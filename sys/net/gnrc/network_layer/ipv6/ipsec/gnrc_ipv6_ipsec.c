@@ -14,7 +14,7 @@
 
 
 #include "net/gnrc/ipv6/ipsec/esp.h"
-#include "net/gnrc/ipv6/ipsec/key_engine.h"
+#include "net/gnrc/ipv6/ipsec/keyengine.h"
 //#include "net/gnrc/ipv6/ipsec/crypt.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 

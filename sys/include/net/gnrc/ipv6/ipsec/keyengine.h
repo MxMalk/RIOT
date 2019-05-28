@@ -90,7 +90,7 @@ extern "C" {
 kernel_pid_t gnrc_ipsec_keyengine_init(void);
 
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
     uint32_t spi; //security parameter index
     uint64_t sn; //sequence number
     uint8_t sn_of; //sequence number overflow flag
@@ -109,9 +109,9 @@ typedef struct {
     uint32_t pmtu; //observed path MTU
     ipv6_addr_t tunnel_src; //tunnel destination ipv6
     ipv6_addr_t tunnel_dst; //tunnel source ipv6
-} sa_t;
+} ipsec_sa_t;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
     uint8_t rule; //int STATUS: (1)PROTECT (2)BYPASS, (3)DISCARD
     /* TODO: sp_type:
      * (0)SPD-I (incomming DISCARD or BYPASS)
@@ -123,9 +123,9 @@ typedef struct {
     uint8_t nh;
     uint8_t dest_port;    
     uint8_t src_port;
-    sa_t *sa;
+    ipsec_sa_t *sa;
 
-} sp_cache_t;
+} ipsec_sp_cache_t;
 
 /**
 * @brief   spd entry retrieval
@@ -134,7 +134,7 @@ typedef struct {
 *
 * @return (0) error, 
 */
-sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port);
+ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port);
 
 
 #ifdef __cplusplus

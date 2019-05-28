@@ -16,8 +16,8 @@
 #define SPD_SIZE (10)
 #define SAD_SIZE (10)
 
-sp_cache_t spd[SPD_SIZE];
-sa_t sad[SAD_SIZE];
+ipsec_sp_cache_t spd[SPD_SIZE];
+ipsec_sa_t sad[SAD_SIZE];
 int spd_size = -1;
 
 static kernel_pid_t _pid = KERNEL_PID_UNDEF;
@@ -44,15 +44,15 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void) {
 
 int spd_init(void) {
     //IKEv2 sa not needed
-    sa_t sa1 = {0};
+    ipsec_sa_t sa1 = {0};
     sad[0] = sa1;
-    sp_cache_t sp1 = {.rule=1, .sa=&sad[0]};
+    ipsec_sp_cache_t sp1 = {.rule=1, .sa=&sad[0]};
     spd[0] = sp1;
     spd_size = 1;
     return 1;
 }
 
-sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port) {
+ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port) {
     //TODO: RIOT sends some packets to itself. check that out.
     (void)dst;
     (void)src;

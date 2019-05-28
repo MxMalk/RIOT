@@ -18,11 +18,11 @@
 #include "debug.h"
 
 /* TODO: returns pkt at ipv6 header */
-gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const sp_cache_t *spd_entry) {
+gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const ipsec_sa_t *sa_entry) {
 	/*TODO: First check if TUNNEL OR TRANSPORT in sad_entry
 	 *
 	 */
-	DEBUG("OUTGOING ESP PACKET:\nSA MODE: %i\nSP STATUS: %i\n", spd_entry->sa->mode, spd_entry->rule);
+	DEBUG("OUTGOING ESP PACKET:\nSA MODE: %i\n", sa_entry->mode);
 	/* TODO: Demux different sp and sa infos */
 	int size = 8; /* TODO: bit or byte? Going for byte */
 	gnrc_pktsnip_t *next = pkt->next;
@@ -34,6 +34,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const sp_cache_t *spd_entr
 		return NULL;
 	}
 	ipv6->nh = PROTNUM_IPV6_EXT_ESP;
+	//TODO: ext header with type ESP created, but empty and no ESP performed. WIP!
 
 	DEBUG("ESP: EXT Header build. PROTNUM of ipv6-nh %i; PROTNUM of nh: %i\n", ipv6->nh, ((ipv6_ext_t *)ext->data)->nh);
 

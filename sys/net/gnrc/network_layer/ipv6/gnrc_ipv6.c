@@ -172,6 +172,39 @@ static void _dispatch_next_header(gnrc_pktsnip_t *pkt, unsigned nh,
     }
 }
 
+#ifdef MODULE_GNRC_IPV6_IPSEC
+/**
+ * @brief   ipsec transmission check
+ * 
+ * @return  1 on BYPASS and PROTECT, 0 on DISCARD
+ */
+static int _ipsec_tx_check_send(gnrc_pktsnip_t *pkt)
+{
+    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
+        case GNRC_IPSEC_BYPASS:
+            break;
+        case GNRC_IPSEC_DISCARD:
+            printf("ipsec: SND DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return 0;
+        case GNRC_IPSEC_PROTECT:
+            /*pkt is handed to ipsec_thread*/
+            DEBUG("ipsec: send to IPsec thread\n");
+            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPSEC, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+                DEBUG("ipsec: no IPsec thread found\n");
+                gnrc_pktbuf_release(pkt);
+            }
+            return 0;
+        default:
+            DEBUG("SPD check returned no result. Discarding packet.\n");
+            gnrc_pktbuf_release(pkt);
+            return 0;
+    }
+    printf("ipsec: SND BYPASS\n");
+    return 1;
+}
+#endif /*MODULE_GNRC_IPV6_IPSEC*/
+
 static void *_event_loop(void *args)
 {
     msg_t msg, reply, msg_q[GNRC_IPV6_MSG_QUEUE_SIZE];
@@ -255,27 +288,9 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     }
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
-        case GNRC_IPSEC_BYPASS:
-            break;
-        case GNRC_IPSEC_DISCARD:
-            printf("ipsec: SND DISCARD\n");
-            gnrc_pktbuf_release(pkt);
-            return;
-        case GNRC_IPSEC_PROTECT:
-        /*pkt is handed to ipsec_thread*/
-            DEBUG("ipsec: send to IPsec thread\n");
-            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPSEC, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
-                DEBUG("ipsec: no IPsec thread found\n");
-                gnrc_pktbuf_release(pkt);
-            }
-            return;
-        default:
-            DEBUG("SPD check returned no result. Discarding packet.\n");
-            gnrc_pktbuf_release(pkt);
-            return;
+    if(_ipsec_tx_check_send(pkt) != 1) {
+        return;
     }
-    printf("ipsec: SND BYPASS\n");
 #endif
 
 #ifdef MODULE_NETSTATS_IPV6
@@ -546,6 +561,13 @@ static void _send_multicast(gnrc_pktsnip_t *pkt, bool prep_hdr,
 static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
                           gnrc_netif_t *netif)
 {
+
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    if(_ipsec_tx_check_send(pkt) != 1) {
+        return;
+    }
+#endif
+
     if (!_safe_fill_ipv6_hdr(netif, pkt, prep_hdr) ||
         /* no netif header so we just merge the whole packet. */
         (gnrc_pktbuf_merge(pkt) != 0)) {
@@ -555,11 +577,7 @@ static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
     }
 
     DEBUG("ipv6: packet is addressed to myself => loopback\n");
-#ifdef MODULE_GNRC_IPV6_IPSEC
-    //TODO: do we need to filter Loopback traffic? If yes we need to do it here.
-        printf("ipsec: SELF send to self\n");
-        gnrc_ipsec_show_pkt(pkt);
-#endif
+
     if (gnrc_netapi_dispatch_receive(GNRC_NETTYPE_IPV6,
                                      GNRC_NETREG_DEMUX_CTX_ALL,
                                      pkt) == 0) {

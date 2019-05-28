@@ -10,17 +10,18 @@
 /**
  * @defgroup    net_gnrc_ipv6_ipsec IPsec
  * @ingroup     net_gnrc_ipv6_ipsec
- * @brief       IPsec thread and methods
- *
- * Incomming esp traffic (esp handlicht) is done by function calls from
- * gnrc_ipv6.c.
- * Outgoing PROTECTED packets are handed to the esp thread where esp header
- * is build, filled and merged into a new IPv6 packet.
+ * @brief       IPsec
  * 
  * @{
  *
  * @file
- * @brief   IPv6 ESP structures and fuctions
+ * @brief   IPsec thread and methods
+ * 
+ * Incomming esp traffic handling is done by function calls from
+ * gnrc_ipv6.c.
+ * Outgoing PROTECTED packets are handed to the ipsec thread where esp header
+ * is build, filled and merged into a new IPv6 packet that gets send diectly
+ * from this thread.
  *
  * @author  Maximilian Malkus <malkus@cip.ifi.lmu.de>
  */

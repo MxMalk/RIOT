@@ -10,6 +10,7 @@
 #include "net/gnrc.h"
 #include "thread.h"
 #include "utlist.h"
+#include "net/gnrc/nettype.h"
 #include "net/gnrc/ipv6/hdr.h"
 
 
@@ -34,6 +35,9 @@ static void *_event_loop(void *args);
 
 /*IPv6 printing function*/
 static void _ipv6_print_info(gnrc_pktsnip_t *pkt);
+
+/*Send to interface function identical with the last lines of the sening process in ipv6 thread*/
+static void _send_to_interface(gnrc_pktsnip_t *pkt);
 
 kernel_pid_t gnrc_ipsec_init(void) {
     if (_pid > KERNEL_PID_UNDEF) {
@@ -107,11 +111,19 @@ static void _check_loop_WIP(void)
    return;
 }
 
-FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode) {
+FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
+{
+    gnrc_pktsnip_t *snip;
+
     if(mode == GNRC_IPSEC_RCV) {
         (void)pkt;
     }
     if(mode == GNRC_IPSEC_SND) {
+        LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_UDP);
+        if (snip != NULL) {
+            printf("ipsec: UDP Rx packet found\n");
+            return GNRC_IPSEC_PROTECT;
+        }
         (void)pkt;
     }
 #if 0
@@ -130,7 +142,7 @@ static void _ipv6_print_info(gnrc_pktsnip_t *pkt)
     static char addr_str2[IPV6_ADDR_MAX_STR_LEN];
     ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
     ipv6_addr_to_str(addr_str2, &ipv6->src, sizeof(addr_str2));
-    DEBUG("ipsec: SRC: %s   DST: %s  ipv6NH: %i ", addr_str, addr_str2, (int)ipv6->nh);
+    DEBUG("ipsec: SRC: %s   DST: %s  ipv6NH: %i \n", addr_str, addr_str2, (int)ipv6->nh);
     if (snip->next != NULL) {
         DEBUG("snipNH: %i\n", gnrc_nettype_to_protnum(snip->next->type));
     } else {
@@ -141,6 +153,7 @@ static void _ipv6_print_info(gnrc_pktsnip_t *pkt)
 
 static void *_event_loop(void *args)
 {
+    //TODO: check if packet if for self, if yes. Throw error and discard.
     //TODO: remove
     (void) _check_loop_WIP();
     msg_t msg, msg_q[GNRC_IPSEC_MSG_QUEUE_SIZE];
@@ -162,15 +175,23 @@ static void *_event_loop(void *args)
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                DEBUG("ipsec_tread: GNRC_NETAPI_MSG_TYPE_RCV\n");
-                _ipv6_print_info(msg.content.ptr);
-                //_receive(msg.content.ptr);
+                /* This shouldn't happen. Rx is handled by function calls 
+                 * from ipv6 thread. TODO: throw error 
+                 */ 
+                DEBUG("ipsec: unexpected code path\n");
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
                 DEBUG("ipsec_tread: GNRC_NETAPI_MSG_TYPE_SND\n");
                 _ipv6_print_info(msg.content.ptr);
-                //_send(msg.content.ptr, true);
+                /*TODO: Protect*/
+                /*if tunnel
+                if (gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6,
+                                    GNRC_NETREG_DEMUX_CTX_ALL, pkt) == 0 ) {
+                    DEBUG("ipv6: unable send packet\n");
+                    gnrc_pktbuf_release(pkt);
+                } */
+                _send_to_interface(msg.content.ptr);
                 break;
                 
             default:
@@ -183,4 +204,28 @@ static void *_event_loop(void *args)
     }
 
     return NULL;
+}
+
+static void _send_to_interface(gnrc_pktsnip_t *pkt) 
+{
+    gnrc_pktsnip_t *snip;
+    gnrc_netif_t *netif;
+
+    /* Interface should allready be set correctly. If not abort*/
+    LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_NETIF);
+    if(snip == NULL) {
+        //TODO: error message
+        return;
+    }
+    netif = gnrc_netif_hdr_get_netif(snip->data);
+    
+#ifdef MODULE_NETSTATS_IPV6
+    netif->ipv6.stats.tx_success++;
+    netif->ipv6.stats.tx_bytes += gnrc_pkt_len(pkt->next);
+#endif
+
+    if (gnrc_netapi_send(netif->pid, pkt) < 1) {
+            DEBUG("ipv6: unable to send packet\n");
+            gnrc_pktbuf_release(pkt);
+    }
 }

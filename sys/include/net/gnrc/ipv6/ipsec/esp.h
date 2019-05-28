@@ -76,7 +76,7 @@ typedef struct __attribute__((packed)) {
 *
 * @return  pktsnip at IPv6 with ESP
 */
-gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const sp_cache_t *spd_entry);
+gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const ipsec_sa_t *sa_entry);
 
 /**
 * @brief   handle esp header

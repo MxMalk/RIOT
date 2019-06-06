@@ -59,7 +59,8 @@ typedef enum TunnelMode {
 typedef enum FilterRule {
     GNRC_IPSEC_DISCARD	= 0,
     GNRC_IPSEC_BYPASS	= 1,
-    GNRC_IPSEC_PROTECT	= 2
+    GNRC_IPSEC_PROTECT	= 2,
+    GNRC_IPSEC_ERR      = 3
 }FilterRule_t;
 
 /**

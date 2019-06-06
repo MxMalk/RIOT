@@ -43,6 +43,12 @@
 #define ENABLE_DEBUG    (0)
 #include "debug.h"
 
+/* TODO dev helper; remove */
+#define ENABLE_IPSEC_DEBUG    (1)
+#if ENABLE_IPSEC_DEBUG
+#define DPRINT(...) printf(__VA_ARGS__)
+#endif
+
 #define _MAX_L2_ADDR_LEN    (8U)
 
 #if ENABLE_DEBUG
@@ -141,10 +147,6 @@ ipv6_hdr_t *gnrc_ipv6_get_header(gnrc_pktsnip_t *pkt)
 static void _dispatch_next_header(gnrc_pktsnip_t *pkt, unsigned nh,
                                   bool interested)
 {
-    //TODO: romev this; IPSEC DEV
-        printf("_dispatch_next_header @ start -> pkt:\n");
-        gnrc_ipsec_show_pkt(pkt);
-
     const bool has_nh_subs = (gnrc_netreg_num(GNRC_NETTYPE_IPV6, nh) > 0) ||
                              interested;
 
@@ -172,39 +174,6 @@ static void _dispatch_next_header(gnrc_pktsnip_t *pkt, unsigned nh,
     }
 }
 
-#ifdef MODULE_GNRC_IPV6_IPSEC
-/**
- * @brief   ipsec transmission check
- * 
- * @return  1 on BYPASS and PROTECT, 0 on DISCARD
- */
-static int _ipsec_tx_check_send(gnrc_pktsnip_t *pkt)
-{
-    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
-        case GNRC_IPSEC_BYPASS:
-            break;
-        case GNRC_IPSEC_DISCARD:
-            printf("ipsec: SND DISCARD\n");
-            gnrc_pktbuf_release(pkt);
-            return 0;
-        case GNRC_IPSEC_PROTECT:
-            /*pkt is handed to ipsec_thread*/
-            DEBUG("ipsec: send to IPsec thread\n");
-            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPSEC, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
-                DEBUG("ipsec: no IPsec thread found\n");
-                gnrc_pktbuf_release(pkt);
-            }
-            return 0;
-        default:
-            DEBUG("SPD check returned no result. Discarding packet.\n");
-            gnrc_pktbuf_release(pkt);
-            return 0;
-    }
-    printf("ipsec: SND BYPASS\n");
-    return 1;
-}
-#endif /*MODULE_GNRC_IPV6_IPSEC*/
-
 static void *_event_loop(void *args)
 {
     msg_t msg, reply, msg_q[GNRC_IPV6_MSG_QUEUE_SIZE];
@@ -227,17 +196,11 @@ static void *_event_loop(void *args)
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                //TODO: remove
-                    printf("ipv6_RCV: _event_loop  msg.content.ptr:\n");
-                    gnrc_ipsec_show_pkt(msg.content.ptr);
                 DEBUG("ipv6: GNRC_NETAPI_MSG_TYPE_RCV received\n");
                 _receive(msg.content.ptr);
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
-                //TODO: remove
-                    printf("ipv6_SND: _event_loop  msg.content.ptr:\n");
-                    gnrc_ipsec_show_pkt(msg.content.ptr);
                 DEBUG("ipv6: GNRC_NETAPI_MSG_TYPE_SND received\n");
                 _send(msg.content.ptr, true);
                 break;
@@ -288,8 +251,27 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     }
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    if(_ipsec_tx_check_send(pkt) != 1) {
-        return;
+    /* TODO: ipsec_dev helper function */
+    //gnrc_ipsec_show_pkt(pkt);
+    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
+        case GNRC_IPSEC_BYPASS:
+            DPRINT("ipv6_ipsec: SND BYPASS\n");
+            break;
+        case GNRC_IPSEC_PROTECT:
+            DPRINT("ipv6_ipsec: SND PROTECT\n");
+            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPSEC, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+                DPRINT("ipsec: no IPsec thread found\n");
+                gnrc_pktbuf_release(pkt);
+            }            
+            return;
+        case GNRC_IPSEC_DISCARD:
+            DPRINT("ipv6_ipsec: SND DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+        case GNRC_IPSEC_ERR:
+            DPRINT("ipv6_ipsec: GNRC_IPSEC_ERR\n");
+            gnrc_pktbuf_release(pkt);
+            return;
     }
 #endif
 
@@ -563,8 +545,14 @@ static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
 {
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    if(_ipsec_tx_check_send(pkt) != 1) {
-        return;
+    switch(gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {        
+        case GNRC_IPSEC_BYPASS:
+            DPRINT("ipv6_ipsec: SND SELF BYPASS\n");
+            break;
+        default:
+            DPRINT("ipv6_ipsec: SND SELF DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;
     }
 #endif
 
@@ -684,29 +672,6 @@ static void _receive(gnrc_pktsnip_t *pkt)
 
     assert(pkt != NULL);
 
-    //TODO: romev this; IPSEC DEV
-        printf("_recieve @ start -> pkt:\n");
-        gnrc_ipsec_show_pkt(pkt);
-
-#ifdef MODULE_GNRC_IPV6_IPSEC
-    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
-        case GNRC_IPSEC_BYPASS:
-            break;
-        case GNRC_IPSEC_DISCARD:
-            printf("ipsec: RCV DISCARD\n");
-            gnrc_pktbuf_release(pkt);
-            return;
-        case GNRC_IPSEC_PROTECT:
-            /*pkt contains ESP header and will be checked in ext header handling */
-            break;
-        default:
-            DEBUG("SPD check returned no result. Discarding packet.\n");
-            gnrc_pktbuf_release(pkt);
-            return;
-    }
-    printf("ipsec: RCV BYPASS/PROTECT\n");            
-#endif
-
     netif_hdr = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
 
     if (netif_hdr != NULL) {
@@ -812,7 +777,34 @@ static void _receive(gnrc_pktsnip_t *pkt)
         DEBUG("ipv6: packet's extension header was errorneous or packet was "
               "consumed due to it\n");
         return;
+    } 
+    /* all ext headers must be marked before IPsec filtering */   
+    if ((pkt = gnrc_ipv6_ext_process_all(pkt, &first_nh)) == NULL) {
+        DEBUG("ipv6: packet was consumed in extension header handling\n");
+        return;
     }
+    /* At this point, all IPv6 headers are marked in pkt */
+
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
+        case GNRC_IPSEC_BYPASS:
+            DPRINT("ipv6_ipsec: RCV BYPASS\n");
+            break;
+        case GNRC_IPSEC_PROTECT:
+        /* TODO we can't know */
+            DPRINT("ipv6_ipsec: RCV PROTECTED\n");
+            break;
+        case GNRC_IPSEC_DISCARD:
+            DPRINT("ipv6_ipsec: RCV DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+        case GNRC_IPSEC_ERR:
+            DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+    }          
+#endif
+
     if (_pkt_not_for_me(&netif, hdr)) { /* if packet is not for me */
         DEBUG("ipv6: packet destination not this host\n");
 
@@ -880,11 +872,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
         return;
 #endif /* MODULE_GNRC_IPV6_ROUTER */
     }
-    if ((pkt = gnrc_ipv6_ext_process_all(pkt, &first_nh)) == NULL) {
-        DEBUG("ipv6: packet was consumed in extension header handling\n");
-        return;
-    }
-    /* At this point, all IPv6 headers are marked in pkt */
+
     _demux(netif, pkt, first_nh);
 }
 

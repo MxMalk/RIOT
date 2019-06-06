@@ -20,7 +20,7 @@
 #include "utlist.h"
 #include "net/gnrc/netif.h"
 #include "net/gnrc/netreg.h"
-#include "net/gnrc/pktbuf.h"
+#include "net/gnrc/pkt.h"
 #include "net/gnrc/icmpv6/error.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/ipv6/ext/rh.h"
@@ -268,12 +268,12 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
                 /* TODO: error message */
                 return NULL;
             }
-            /* TODO: Con this code go? 
-             * ...Maybe allready mark it in handling? */
+             /* ...Maybe allready mark it in handling? */
             if (_mark_extension_header(pkt) == NULL) {
-                        /* header couldn't be marked */
-                        return NULL;
-                    }
+                /* header couldn't be marked */
+                return NULL;
+            }
+            pkt->type = GNRC_NETTYPE_IPV6_EXT_ESP;
             break;
 #endif /* MODULE_GNRC_IPV6_IPSEC */
         case PROTNUM_IPV6_EXT_HOPOPT:
@@ -296,7 +296,7 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
 }
 
 gnrc_pktsnip_t *gnrc_ipv6_ext_build(gnrc_pktsnip_t *ipv6, gnrc_pktsnip_t *next,
-                                    uint8_t nh, size_t size)
+                                    uint8_t nh, size_t size, gnrc_nettype_t ext_nettype)
 {
     gnrc_pktsnip_t *prev = NULL, *snip;
     ipv6_ext_t *ext;
@@ -318,15 +318,18 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_build(gnrc_pktsnip_t *ipv6, gnrc_pktsnip_t *next,
         }
     }
 
-    /* malloc new snip with @ next as next snip */
-    snip = gnrc_pktbuf_add(next, NULL, size, GNRC_NETTYPE_IPV6);
+    gnrc_pktbuf_start_write(next);
+
+    /* malloc new snip with next as next snip */
+    snip = gnrc_pktbuf_add(next, NULL, size, ext_nettype);
 
     if (snip == NULL) {
         return NULL;
     }
 
+    /* set next header information */
+    snip->type = ext_nettype;
     ext = snip->data;
-
     ext->nh = nh;
 
     if (size & 0x7) { /* not divisible by eight */

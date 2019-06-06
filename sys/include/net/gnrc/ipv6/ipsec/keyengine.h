@@ -134,7 +134,7 @@ typedef struct __attribute__((__packed__)) {
 *
 * @return (0) error, 
 */
-ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port);
+const ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, const uint8_t *nh, int dest_port, int src_port);
 
 
 #ifdef __cplusplus

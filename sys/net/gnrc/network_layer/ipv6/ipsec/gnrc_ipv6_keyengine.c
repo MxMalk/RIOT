@@ -10,7 +10,7 @@
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #define SPD_SIZE (10)
@@ -42,7 +42,7 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void) {
     return _pid;
 }
 
-int spd_init(void) {
+int _spd_init_mockup(void) {
     //IKEv2 sa not needed
     ipsec_sa_t sa1 = {0};
     sad[0] = sa1;
@@ -52,7 +52,7 @@ int spd_init(void) {
     return 1;
 }
 
-ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, uint8_t nh, uint8_t dest_port, uint8_t src_port) {
+const ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, const uint8_t *nh, int dest_port, int src_port) {
     //TODO: RIOT sends some packets to itself. check that out.
     (void)dst;
     (void)src;
@@ -60,14 +60,13 @@ ipsec_sp_cache_t *get_spd_entry(const ipv6_addr_t *dst, const ipv6_addr_t *src, 
     (void)dest_port;
     (void)src_port;
    
-    if(spd_size == -1) {        
-        spd_init();
-    } 
-    
-    int no_entry = 0;
-    if (no_entry == 1) {
-        return NULL;
+    if(spd_size == -1) {
+        DEBUG("ipsec_keyengine: SPD chache not initialized\n");
+    } else {
+        return &spd[0];
     }
+    
+    /* TODO: if no_entry return NULL */
 
     return &spd[0];
 }
@@ -77,6 +76,9 @@ static void *_event_loop(void *args) {
 
     //TODO: create waiting for msg()
     //Howto wait for ipsec AND pfkey requests/responses?
+    _spd_init_mockup();
+
+    DEBUG("ipsec_keyengine: Thread initialized\n");
 
     while (1) {
         thread_sleep();

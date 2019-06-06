@@ -51,7 +51,7 @@ extern "C" {
  * @return  NULL, on error.
  */
 gnrc_pktsnip_t *gnrc_ipv6_ext_build(gnrc_pktsnip_t *ipv6, gnrc_pktsnip_t *next,
-                                    uint8_t nh, size_t size);
+                                    uint8_t nh, size_t size, gnrc_nettype_t ext_nettype);
 
 #if     defined(MODULE_GNRC_IPV6_EXT) || defined(DOXYGEN)
 /**

@@ -64,7 +64,9 @@ extern "C" {
 typedef struct __attribute__((packed)) {
 	network_uint32_t spi;
 	network_uint32_t sn;
-	/* TODO */
+	/* TODO how to handle the dynamic size of the payload? */
+  uint32_t dummy;
+  uint16_t dummy2;
 	uint8_t pl;
 	uint8_t nh;
 } ipv6_esp_hdr_t;

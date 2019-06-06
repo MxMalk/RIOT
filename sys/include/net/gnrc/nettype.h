@@ -78,6 +78,7 @@ typedef enum {
 #endif
 #ifdef MODULE_GNRC_IPV6_IPSEC
     GNRC_NETTYPE_IPSEC,          /**< Protocol is IPSEC */
+    GNRC_NETTYPE_IPV6_EXT_ESP,      /**< Protocol is IPv6 extension header */
 #endif
 #ifdef MODULE_GNRC_ICMPV6
     GNRC_NETTYPE_ICMPV6,        /**< Protocol is ICMPv6 */

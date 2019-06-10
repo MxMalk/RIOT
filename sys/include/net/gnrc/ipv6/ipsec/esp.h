@@ -64,12 +64,13 @@ extern "C" {
 typedef struct __attribute__((packed)) {
 	network_uint32_t spi;
 	network_uint32_t sn;
-	/* TODO how to handle the dynamic size of the payload? */
-  uint32_t dummy;
-  uint16_t dummy2;
+} ipv6_esp_hdr_t;
+
+typedef struct __attribute__((packed)) {
 	uint8_t pl;
 	uint8_t nh;
-} ipv6_esp_hdr_t;
+  uint64_t icv;
+} ipv6_esp_trl_t;
 
 /**
 * @brief   build esp header
@@ -78,14 +79,17 @@ typedef struct __attribute__((packed)) {
 *
 * @return  pktsnip at IPv6 with ESP
 */
-gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, const ipsec_sa_t *sa_entry);
+gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, 
+                        const ipsec_sa_t *sa_entry);
 
 /**
-* @brief   handle esp header
+* @brief   Marks, Decrypts and returns pkt at next header. If the ipsec rules
+             dictate tunnel mode, packet is consumed and processed.
 *
-* @param[in] 
+* @param[in] pktsnip of ESP EXT header
 *
-* @return  
+* @return  processed ESP pkt at next header poisition
+* @return  NULL on tunnel mode
 */
 gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt);
 

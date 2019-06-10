@@ -34,6 +34,10 @@ static char _stack[GNRC_IPSEC_STACK_SIZE];
 static void *_event_loop(void *args);
 
 kernel_pid_t gnrc_ipsec_init(void) {
+
+    /* TODO: big manual memory areas, or reallocs with LIMITS? Should we realloc 
+    for every entry or "predict" and always allready allocate 2 or 3 spaces ahead. */
+
     if (_pid > KERNEL_PID_UNDEF) {
         return _pid;
     }
@@ -177,6 +181,7 @@ FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
         LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_UDP);
         if (snip != NULL) {
             DEBUG("ipsec: UDP Rx packet found\n");
+            //return GNRC_IPSEC_BYPASS;
             return GNRC_IPSEC_PROTECT;
         }
         (void)pkt;

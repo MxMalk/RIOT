@@ -787,13 +787,14 @@ static void _receive(gnrc_pktsnip_t *pkt)
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
     switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
+        /* PROTECT pkts are allready handled in ext processing */
         case GNRC_IPSEC_BYPASS:
             DPRINT("ipv6_ipsec: RCV BYPASS\n");
             break;
         case GNRC_IPSEC_PROTECT:
-        /* TODO we can't know */
-            DPRINT("ipv6_ipsec: RCV PROTECTED\n");
-            break;
+        /* must never happen */
+            gnrc_pktbuf_release(pkt);
+            return;
         case GNRC_IPSEC_DISCARD:
             DPRINT("ipv6_ipsec: RCV DISCARD\n");
             gnrc_pktbuf_release(pkt);

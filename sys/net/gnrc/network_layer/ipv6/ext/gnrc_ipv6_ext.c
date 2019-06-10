@@ -30,7 +30,7 @@
 
 #include "net/gnrc/ipv6/ext.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 /**
@@ -105,12 +105,22 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
 
     bool is_ext = true;
     while (is_ext) {
+        printf("ext protnum: %i\n", (int)*protnum);
         switch (*protnum) {
+            case PROTNUM_IPV6_EXT_AH:
+            case PROTNUM_IPV6_EXT_ESP:
+#ifdef MODULE_GNRC_IPV6_IPSEC
+                if ((pkt = _demux(pkt, *protnum)) == NULL) {
+                    DEBUG("ipv6: error in esp handling\n");
+                    return NULL;
+                }
+                *protnum = gnrc_nettype_to_protnum(pkt->type);
+                is_ext = false;
+                break;
+#endif
             case PROTNUM_IPV6_EXT_DST:
             case PROTNUM_IPV6_EXT_RH:
             case PROTNUM_IPV6_EXT_FRAG:
-            case PROTNUM_IPV6_EXT_AH:
-            case PROTNUM_IPV6_EXT_ESP:
             case PROTNUM_IPV6_EXT_MOB: {
                 ipv6_ext_t *ext_hdr;
                 DEBUG("ipv6: handle extension header (protnum = %u)\n",
@@ -194,7 +204,8 @@ static inline bool _has_valid_size(gnrc_pktsnip_t *pkt, uint8_t protnum)
         case PROTNUM_IPV6_EXT_FRAG:
         case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_ESP:
-        //TODO: Is DietESP usinf 'invalid' sizes?
+        //TODO: What to do about ESP here, and especially DietESP
+            return true;
         case PROTNUM_IPV6_EXT_MOB:
             return ((ext->len * IPV6_EXT_LEN_UNIT) + IPV6_EXT_LEN_UNIT) <= pkt->size;
 
@@ -262,18 +273,10 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
         case PROTNUM_IPV6_EXT_ESP:
 #ifdef MODULE_GNRC_IPV6_IPSEC
             pkt = esp_header_process(pkt);
-            pkt = gnrc_ipsec_handle_esp(pkt);
-            /* IF tunnel -> drop processed packet into ipv6_msg_queue again and release pkt? */
             if( pkt == NULL) {
                 /* TODO: error message */
                 return NULL;
             }
-             /* ...Maybe allready mark it in handling? */
-            if (_mark_extension_header(pkt) == NULL) {
-                /* header couldn't be marked */
-                return NULL;
-            }
-            pkt->type = GNRC_NETTYPE_IPV6_EXT_ESP;
             break;
 #endif /* MODULE_GNRC_IPV6_IPSEC */
         case PROTNUM_IPV6_EXT_HOPOPT:

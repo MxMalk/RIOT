@@ -77,7 +77,6 @@ typedef enum {
     GNRC_NETTYPE_IPV6_EXT,      /**< Protocol is IPv6 extension header */
 #endif
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    GNRC_NETTYPE_IPSEC,          /**< Protocol is IPSEC */
     GNRC_NETTYPE_IPV6_EXT_ESP,      /**< Protocol is IPv6 extension header */
 #endif
 #ifdef MODULE_GNRC_ICMPV6
@@ -235,9 +234,13 @@ static inline gnrc_nettype_t gnrc_nettype_from_protnum(uint8_t num)
         case PROTNUM_IPV6_EXT_FRAG:
         case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_ESP:
+#ifdef MODULE_GNRC_IPV6_IPSEC
+            return GNRC_NETTYPE_IPV6_EXT_ESP;
+#endif
         case PROTNUM_IPV6_EXT_MOB:
             return GNRC_NETTYPE_IPV6_EXT;
 #endif
+
         default:
             return GNRC_NETTYPE_UNDEF;
     }
@@ -272,6 +275,10 @@ static inline uint8_t gnrc_nettype_to_protnum(gnrc_nettype_t type)
 #ifdef MODULE_GNRC_UDP
         case GNRC_NETTYPE_UDP:
             return PROTNUM_UDP;
+#endif
+#ifdef MODULE_GNRC_IPV6_IPSEC
+        case GNRC_NETTYPE_IPV6_EXT_ESP:
+            return PROTNUM_IPV6_EXT_ESP;
 #endif
         default:
             return PROTNUM_RESERVED;

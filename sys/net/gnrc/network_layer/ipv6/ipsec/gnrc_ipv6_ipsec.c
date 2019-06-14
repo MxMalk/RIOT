@@ -34,10 +34,6 @@ static char _stack[GNRC_IPSEC_STACK_SIZE];
 static void *_event_loop(void *args);
 
 kernel_pid_t gnrc_ipsec_init(void) {
-
-    /* TODO: big manual memory areas, or reallocs with LIMITS? Should we realloc 
-    for every entry or "predict" and always allready allocate 2 or 3 spaces ahead. */
-
     if (_pid > KERNEL_PID_UNDEF) {
         return _pid;
     }
@@ -77,13 +73,15 @@ void gnrc_ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
     }
     
 	while (snip != NULL) {
-		printf("snip %i: protnum: %i size: %i\n", i, gnrc_nettype_to_protnum(snip->type), snip->size);
+		printf("snip %i: protnum: %i size: %i\n", i, 
+                gnrc_nettype_to_protnum(snip->type), snip->size);
 		snip = snip->next;
 		i++;
 	}
 }
 
-/*Send to interface function identical with the last lines of the sending process in ipv6 thread*/
+/* Send to interface function identical with the last lines of the
+ * sending process in ipv6 thread*/
 static void _send_to_interface(gnrc_pktsnip_t *pkt) 
 {
     gnrc_pktsnip_t *snip;
@@ -120,51 +118,6 @@ gnrc_pktsnip_t *gnrc_ipsec_handle_esp(gnrc_pktsnip_t *pkt) {
     return pkt;
 }
 
-static void _check_loop_WIP(void)
-{
-    /*
-    int tunnel_mode = -1; //ESP MODE: (0)TRANSPORT, (1)TUNNEL
-    int ip_rounds = 0; //(1)Transport (2)TUNNEL;
-    int sp_rule = 0;
-    sp_cache_t *sp_entry;
-
-    //TODO: analyse payload and fill nh, dp, so
-    uint8_t nh = 0;
-    uint8_t dp = 0;
-    uint8_t sp = 0;
-    sp_entry = get_spd_entry(dst, src, nh, dp, sp);
-    if (sp_entry == NULL) {
-        sp_rule = 0;
-    } else {
-        sp_rule = sp_entry->rule;
-    }
-
-    switch(sp_rule) {
-        case 0: DEBUG("Discarding IPV6 packet: No SPD rule.\n");
-                gnrc_pktbuf_release(payload);
-                return NULL;
-                break;
-        case 1: tunnel_mode = sp_entry->sa->mode;
-                if(tunnel_mode == 0) { //in (0)Transport tunnel_mode we only do one round of IPv6 building.
-                    ip_rounds = 1;
-                } else {
-                    ip_rounds = 2;
-                }
-                break;
-        case 2: ip_rounds = 1;
-                break;
-        case 3: DEBUG("Discarding IPV6 packet based on SPD rule.\n");
-                gnrc_pktbuf_release(payload);
-                return NULL;
-                break;
-        default: DEBUG("get_spd_status returned invalid value: %i\n", tunnel_mode);
-                return NULL;
-                break;
-    }
-    */
-   return;
-}
-
 FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
 {
     gnrc_pktsnip_t *snip;
@@ -192,29 +145,31 @@ FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
     return GNRC_IPSEC_BYPASS;
 }
 
-static const ipsec_sp_cache_t *_sp_from_packet(gnrc_pktsnip_t *pkt) {
+static const ipsec_sp_chache_t *_sp_from_packet(TrafficMode_t traffic_mode, 
+                                                gnrc_pktsnip_t *pkt) {
     gnrc_pktsnip_t *snip = NULL;
+    ipsec_traffic_selector_t ts;
     LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
     ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)snip->data);
     // TODO: if nh = UDP/TCP: SEARCH SCALAR for it and add port, else:
-    int dst_p = -1;
-    int src_p = -1;
-    return get_spd_entry(&ipv6->dst, &ipv6->src, &ipv6->nh, dst_p, src_p);
+    ts.dst = ipv6->dst;
+    ts.src = ipv6->src;
+    ts.dst_port = -1;
+    ts.src_port = -1;
+    return get_sp_entry(traffic_mode, ts);
 }
 
 static void *_event_loop(void *args)
 {
-    //TODO: check if packet if for self, if yes. Throw error and discard.
-    //TODO: remove
-    (void) _check_loop_WIP();
     gnrc_pktsnip_t *pkt;
     msg_t msg, msg_q[GNRC_IPSEC_MSG_QUEUE_SIZE];
     gnrc_netreg_entry_t me_reg = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
-                                                            sched_active_pid);(void)args;
+                                                            sched_active_pid);
+    (void)args;
     msg_init_queue(msg_q, GNRC_IPSEC_MSG_QUEUE_SIZE);
 
     /* register interest in all IPV6 packets */
-    gnrc_netreg_register(GNRC_NETTYPE_IPSEC, &me_reg);
+    gnrc_netreg_register(GNRC_NETTYPE_IPV6_EXT_ESP, &me_reg);
     
     
     DEBUG("ipsec: thread up and running\n");
@@ -225,12 +180,6 @@ static void *_event_loop(void *args)
         msg_receive(&msg);
 
         switch (msg.type) {
-            case GNRC_NETAPI_MSG_TYPE_RCV:
-                /* This shouldn't happen. Rx is handled by function calls 
-                 * from ipv6 thread. TODO: throw error 
-                 */ 
-                DEBUG("ipsec_thread: unexpected code path\n");
-                break;
             case GNRC_NETAPI_MSG_TYPE_SND:
                 DEBUG("ipsec_thread: GNRC_NETAPI_MSG_TYPE_SND\n");
 #ifdef ENABLE_DEBUG
@@ -245,11 +194,16 @@ static void *_event_loop(void *args)
                     gnrc_pktbuf_release(pkt);
                 } */
                 pkt = msg.content.ptr;
-                esp_header_build(pkt, _sp_from_packet(pkt)->sa);
+                esp_header_build(pkt, _sp_from_packet(GNRC_IPSEC_SND, pkt)->sa);
                 _send_to_interface(pkt);
-                break;                
+                break;
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                /* This shouldn't happen. Rx is handled by function calls 
+                 * from ipv6 thread */ 
+                DEBUG("ipsec_thread: unexpected code path\n");
+                break;              
             default:
-                DEBUG("ipsec_thread: default/unknown received.\n");
+                DEBUG("ipsec_thread: netapi msg type not supported.\n");
                 break;
         }
     }

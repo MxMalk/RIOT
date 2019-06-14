@@ -30,6 +30,7 @@
 #define NET_GNRC_IPV6_IPSEC
 
 
+#include "net/ipv6/addr.h"
 #include "kernel_types.h"
 #include "net/gnrc/pkt.h"
 
@@ -49,8 +50,8 @@ typedef enum TrafficMode {
  * @brief   Tunnel mode
  */
 typedef enum TunnelMode {
-    GNRC_IPSEC_TUNNEL		= 0,
-    GNRC_IPSEC_TRANSPORT	= 1
+    GNRC_IPSEC_TRANSPORT	= 0,
+    GNRC_IPSEC_TUNNEL		= 1
 }TunnelMode_t;
 
 /**
@@ -90,6 +91,14 @@ typedef enum FilterRule {
 #define GNRC_IPSEC_MSG_QUEUE_SIZE   (8U)
 #endif
 
+typedef struct __attribute__((__packed__)) {
+    ipv6_addr_t dst;
+    ipv6_addr_t src;
+    uint8_t nh;
+    //int to be NULL-able by -1
+    int dst_port;
+    int src_port;
+} ipsec_traffic_selector_t;
 
 /**
  * @brief   Initialization of the IPsec thread.

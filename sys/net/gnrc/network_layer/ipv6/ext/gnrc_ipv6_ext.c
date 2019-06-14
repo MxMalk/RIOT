@@ -30,7 +30,7 @@
 
 #include "net/gnrc/ipv6/ext.h"
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 /**
@@ -105,7 +105,6 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
 
     bool is_ext = true;
     while (is_ext) {
-        printf("ext protnum: %i\n", (int)*protnum);
         switch (*protnum) {
             case PROTNUM_IPV6_EXT_AH:
             case PROTNUM_IPV6_EXT_ESP:

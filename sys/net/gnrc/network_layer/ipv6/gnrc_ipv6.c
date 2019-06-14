@@ -251,15 +251,13 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     }
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    /* TODO: ipsec_dev helper function */
-    //gnrc_ipsec_show_pkt(pkt);
     switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
         case GNRC_IPSEC_BYPASS:
             DPRINT("ipv6_ipsec: SND BYPASS\n");
             break;
         case GNRC_IPSEC_PROTECT:
             DPRINT("ipv6_ipsec: SND PROTECT\n");
-            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPSEC, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
                 DPRINT("ipsec: no IPsec thread found\n");
                 gnrc_pktbuf_release(pkt);
             }            

@@ -107,7 +107,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	gnrc_pktbuf_start_write(next);
 	/* malloc new snip with next as next snip */
 	//TODO: merge data of payload and put it in here. increase the size. Delete old next packet after that*/
-	esp = gnrc_pktbuf_add(NULL, NULL, esp_size, GNRC_NETTYPE_IPV6_EXT_ESP);
+	esp = gnrc_pktbuf_add(NULL, NULL, esp_size, GNRC_NETTYPE_IPV6_EXT_ESP);	
 
 	if (esp == NULL) {
 		return NULL;

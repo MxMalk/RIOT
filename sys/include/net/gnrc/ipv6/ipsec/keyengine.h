@@ -66,9 +66,14 @@ extern "C" {
 #endif
 
 /**
- * @brief   size of  type size ipsec_cypher_key_t
+ * @brief   size of max ipsec_cypher_key_t in byte
  */
-#define IPSEC_MAX_KEY_SIZE      (512U)
+#define IPSEC_MAX_KEY_SIZE      (64U)
+
+/**
+ * @brief   sliding window size for anti replay
+ */
+#define IPSEC_ANTI_R_WINDOW_SIZE      (3)
 
 /**
  *  @brief  Maximum Memory use of IPsec Database in bytes
@@ -101,34 +106,27 @@ typedef enum {
     IPSEC_CYPHER_CHACHA	= 2
 }ESP_cypher_t;
 
+
 typedef struct __attribute__((__packed__)) {
-#if IPSEC_MAX_KEY_SIZE == 128
-    uint16_t key;
-#endif
-#if IPSEC_MAX_KEY_SIZE == 256
-    uint32_t key;
-#endif
-#if IPSEC_MAX_KEY_SIZE == 512
-    uint64_t key;
-#endif
-#if IPSEC_MAX_KEY_SIZE == 1024
-    uint128_t key;
-#endif
+    /* key[0] == least significant byte */
+    uint8_t key[IPSEC_MAX_KEY_SIZE];
 } ipsec_cypher_key_t;
 
 /**
  * @brief   Security Assiciation Database (SAD) entry type 
  */
 typedef struct __attribute__((__packed__)) {
+    uint16_t id;            /**< security parameter identifier */
     uint32_t spi;           /**< security parameter index */
     uint64_t sn;            /**< sequence number */
-    uint8_t sn_of;          /**< overflow permission flag for sequence number */
-    uint64_t rp_c;          /**< replay window counter */
-    //TODO: bitmap to check for a replay??
-    //TODO: dynamically choose key size depending on cyphers used? like MAX_KEY_SIZE or link to cypher type
-    ipsec_cypher_key_t encr_cyph;      /**< encryption cypher type */
-    ipsec_cypher_key_t auth_cyph;      /**< authentication cypher type */
-    ipsec_cypher_key_t comb_cyph;      /**< combined auth and enc cypher type */
+    uint8_t sn_of;          /**< overflow permission flag for sequence number. (1) overflow allowed */
+    //TODO: add rudimentary rp_window handling somewhere
+    uint64_t rp_l_bound;          /**< replay window lower bound */
+    uint64_t rp_u_bound;          /**< replay window upper bound */
+    uint64_t rp_window[IPSEC_ANTI_R_WINDOW_SIZE];   /**< replay window content */
+    ipsec_cypher_key_t encr_key;      /**< encryption cypher type */
+    ipsec_cypher_key_t auth_key;      /**< authentication cypher type */
+    ipsec_cypher_key_t comb_key;      /**< combined auth and enc cypher type */
     //TODO: +iv ??
     uint32_t re_lt;         /**< renegotiation after milliseconds */
     uint32_t re_bc;         /**< renegotiation after bytecount */
@@ -164,7 +162,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp_chache {
     ipv6_addr_t tunnel_src;
     ipv6_addr_t tunnel_dst;
     ipsec_sa_t *sa;
-} ipsec_sp_chache_t;
+} ipsec_sp_cache_t;
 
 /**
  * @brief   Security Policy Database CACHE (SPD chache) entry type 
@@ -213,7 +211,7 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void);
 *
 * @return ipsec_sp_chache_t
 */
-const ipsec_sp_chache_t *get_sp_entry(TrafficMode_t traffic_mode,
+const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
                         ipsec_traffic_selector_t ts);
 
 

@@ -28,7 +28,7 @@
  * @return  pkt at ipv6 header with esp encasulated payload
  */
 gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, 
-		const ipsec_sa_t *sa_entry) {
+		const ipsec_sa_t *sa_entry, uint8_t protnum_payload) {
 	/*TODO: First check if TUNNEL OR TRANSPORT in sad_entry
 	 * if tunnel, there could be an ESP packet inside
 	 */
@@ -58,7 +58,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	int nh;
 
 	/* Since we do not now what is the payload, we only supporting UDP for now */
-	/* TODO: how do we find what snip is the payload? */
+	/* TODO: how do we find what snip is the payload? Get nh from IP snip*/
 	
 	LL_SEARCH_SCALAR(pkt, next, type, GNRC_NETTYPE_UDP);
 	if(next == NULL) {
@@ -75,7 +75,8 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 		return NULL;
 	}
 
-	/* TODO: TMP - Copy and measure following snips data to tmp variable */
+	/* TODO: TMP - Copy and measure following snips data to tmp variable 
+	 * use gnrc_pktbuf_merge() ?*/
 	payload_size = 0;
 	snip = next;
 	while(snip != NULL) {

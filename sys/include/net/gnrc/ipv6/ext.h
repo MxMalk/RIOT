@@ -129,6 +129,3 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
 #endif
 
 #endif /* NET_GNRC_IPV6_EXT_H */
-/**
- * @}
- */

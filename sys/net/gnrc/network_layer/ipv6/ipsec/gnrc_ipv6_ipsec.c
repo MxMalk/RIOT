@@ -134,15 +134,15 @@ FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
         LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_UDP);
         if (snip != NULL) {
             DEBUG("ipsec: UDP Rx packet found\n");
-            //return GNRC_IPSEC_BYPASS;
-            return GNRC_IPSEC_PROTECT;
+            //return GNRC_IPSEC_F_BYPASS;
+            return GNRC_IPSEC_F_PROTECT;
         }
         (void)pkt;
     }
 #if 0
-    return GNRC_IPSEC_DISCARD;
+    return GNRC_IPSEC_F_DISCARD;
 #endif
-    return GNRC_IPSEC_BYPASS;
+    return GNRC_IPSEC_F_BYPASS;
 }
 
 static const ipsec_sp_chache_t *_sp_from_packet(TrafficMode_t traffic_mode, 

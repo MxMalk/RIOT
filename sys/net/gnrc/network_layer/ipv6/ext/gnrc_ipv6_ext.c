@@ -20,7 +20,7 @@
 #include "utlist.h"
 #include "net/gnrc/netif.h"
 #include "net/gnrc/netreg.h"
-#include "net/gnrc/pkt.h"
+#include "net/gnrc/pktbuf.h"
 #include "net/gnrc/icmpv6/error.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/ipv6/ext/rh.h"

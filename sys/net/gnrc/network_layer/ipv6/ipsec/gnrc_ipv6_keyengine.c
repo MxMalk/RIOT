@@ -148,7 +148,7 @@ const ipsec_sp_chache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
         return NULL;
     }
 
-    if(spd_rule->rule == GNRC_IPSEC_PROTECT) {
+    if(spd_rule->rule == GNRC_IPSEC_F_PROTECT) {
         if(traffic_mode == GNRC_IPSEC_RCV) {
             DEBUG("ipsec_keyeng: ERROR: Rx packet for uninitialized ESP connection\n");
             return NULL;
@@ -266,8 +266,8 @@ int _return_spd_conf(ipsec_sp_t *spd) {
     spd_pointer->dst_port = 0;    
     spd_pointer->src_port = 0;
 
-    spd_pointer->rule = GNRC_IPSEC_BYPASS; 
-    spd_pointer->tun_mode = GNRC_IPSEC_TRANSPORT;
+    spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
+    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
     spd_pointer->encr_cypher = IPSEC_CYPHER_NONE;
 
     spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
@@ -289,8 +289,8 @@ int _return_spd_conf(ipsec_sp_t *spd) {
     spd_pointer->dst_port = 666;    
     spd_pointer->src_port = 666;
 
-    spd_pointer->rule = GNRC_IPSEC_PROTECT; 
-    spd_pointer->tun_mode = GNRC_IPSEC_TRANSPORT;
+    spd_pointer->rule = GNRC_IPSEC_F_PROTECT; 
+    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
     spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
 
     spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;

@@ -252,22 +252,22 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
     switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
-        case GNRC_IPSEC_BYPASS:
+        case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: SND BYPASS\n");
             break;
-        case GNRC_IPSEC_PROTECT:
+        case GNRC_IPSEC_F_PROTECT:
             DPRINT("ipv6_ipsec: SND PROTECT\n");
             if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
                 DPRINT("ipsec: no IPsec thread found\n");
                 gnrc_pktbuf_release(pkt);
             }            
             return;
-        case GNRC_IPSEC_DISCARD:
+        case GNRC_IPSEC_F_DISCARD:
             DPRINT("ipv6_ipsec: SND DISCARD\n");
             gnrc_pktbuf_release(pkt);
             return;
-        case GNRC_IPSEC_ERR:
-            DPRINT("ipv6_ipsec: GNRC_IPSEC_ERR\n");
+        case GNRC_IPSEC_F_ERR:
+            DPRINT("ipv6_ipsec: GNRC_IPSEC_F_ERR\n");
             gnrc_pktbuf_release(pkt);
             return;
     }
@@ -544,7 +544,7 @@ static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
     switch(gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {        
-        case GNRC_IPSEC_BYPASS:
+        case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: SND SELF BYPASS\n");
             break;
         default:
@@ -786,18 +786,18 @@ static void _receive(gnrc_pktsnip_t *pkt)
 #ifdef MODULE_GNRC_IPV6_IPSEC
     switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
         /* PROTECT pkts are allready handled in ext processing */
-        case GNRC_IPSEC_BYPASS:
+        case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: RCV BYPASS\n");
             break;
-        case GNRC_IPSEC_PROTECT:
+        case GNRC_IPSEC_F_PROTECT:
         /* must never happen */
             gnrc_pktbuf_release(pkt);
             return;
-        case GNRC_IPSEC_DISCARD:
+        case GNRC_IPSEC_F_DISCARD:
             DPRINT("ipv6_ipsec: RCV DISCARD\n");
             gnrc_pktbuf_release(pkt);
             return;
-        case GNRC_IPSEC_ERR:
+        case GNRC_IPSEC_F_ERR:
             DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
             gnrc_pktbuf_release(pkt);
             return;

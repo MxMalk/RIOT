@@ -50,18 +50,18 @@ typedef enum TrafficMode {
  * @brief   Tunnel mode
  */
 typedef enum TunnelMode {
-    GNRC_IPSEC_TRANSPORT	= 0,
-    GNRC_IPSEC_TUNNEL		= 1
+    GNRC_IPSEC_M_TRANSPORT	= 0,
+    GNRC_IPSEC_M_TUNNEL		= 1
 }TunnelMode_t;
 
 /**
  * @brief   IPsec firewall rule
  */
 typedef enum FilterRule {
-    GNRC_IPSEC_DISCARD	= 0,
-    GNRC_IPSEC_BYPASS	= 1,
-    GNRC_IPSEC_PROTECT	= 2,
-    GNRC_IPSEC_ERR      = 3
+    GNRC_IPSEC_F_DISCARD	= 0,
+    GNRC_IPSEC_F_BYPASS	= 1,
+    GNRC_IPSEC_F_PROTECT	= 2,
+    GNRC_IPSEC_F_ERR      = 3
 }FilterRule_t;
 
 /**

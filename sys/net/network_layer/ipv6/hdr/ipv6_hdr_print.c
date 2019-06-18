@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-
 #include "net/ipv6/hdr.h"
 
 void ipv6_hdr_print(ipv6_hdr_t *hdr)

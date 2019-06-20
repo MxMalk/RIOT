@@ -42,22 +42,22 @@ extern "C" {
    #define PF_KEY_V2 2
    #define PFKEYV2_REVISION        199806L
 
-   #define SADB_RESERVED    0
-   #define SADB_GETSPI      1
-   #define SADB_UPDATE      2
-   #define SADB_ADD         3
-   #define SADB_DELETE      4
-   #define SADB_GET         5
-   #define SADB_ACQUIRE     6
-   #define SADB_REGISTER    7
-   #define SADB_EXPIRE      8
-   #define SADB_FLUSH       9
-   #define SADB_DUMP        10
-   #define SADB_X_PROMISC   11
-   #define SADB_X_PCHANGE   12
-   #define SADB_MAX         12
+   #define SADB_RESERVED    (0x6600U)
+   #define SADB_GETSPI      (0x6601U)
+   #define SADB_UPDATE      (0x6602U)
+   #define SADB_ADD         (0x6603U)
+   #define SADB_DELETE      (0x6604U)
+   #define SADB_GET         (0x6605U)
+   #define SADB_ACQUIRE     (0x6606U)
+   #define SADB_REGISTER    (0x6607U)
+   #define SADB_EXPIRE      (0x6608U)
+   #define SADB_FLUSH       (0x6609U)
+   #define SADB_DUMP        (0x660aU)
+   #define SADB_X_PROMISC   (0x660bU)
+   #define SADB_X_PCHANGE   (0x660cU)
+   #define SADB_MAX         (0x660dU)
 
-   struct sadb_msg {
+   typedef struct {
      uint8_t sadb_msg_version;
      uint8_t sadb_msg_type;
      uint8_t sadb_msg_errno;
@@ -66,14 +66,14 @@ extern "C" {
      uint16_t sadb_msg_reserved;
      uint32_t sadb_msg_seq;
      uint32_t sadb_msg_pid;
-   };
+   } sadb_msg_t;
 
-   struct sadb_ext {
+   typedef struct {
      uint16_t sadb_ext_len;
      uint16_t sadb_ext_type;
-   };
+   }sadb_ext_t;
 
-   struct sadb_sa {
+   typedef struct {
      uint16_t sadb_sa_len;
      uint16_t sadb_sa_exttype;
      uint32_t sadb_sa_spi;
@@ -82,7 +82,7 @@ extern "C" {
      uint8_t sadb_sa_auth;
      uint8_t sadb_sa_encrypt;
      uint32_t sadb_sa_flags;
-   };
+   }sadb_sa_t;
 
    struct sadb_lifetime {
      uint16_t sadb_lifetime_len;

@@ -19,13 +19,16 @@
   * Security Policy Database cache for outgoing traffic (SPD-O)
   * Security Assiciation Database (SAD)
   * 
-  * The SPD entries aka. rules are administered. The chaches are derived from 
+  * The SPD entries aka. rules are administered. The caches are derived from 
   * those rules on demand for specific connections.
   * 
   * The content of the SAD entries is normally negotiated by the IKEv2 routine
   * but for this initial implementation we will work with mockup entries set 
   * by hand via the commandline tool dbfrm contained in the example 
   * gnrc_networking_ipsec.
+  * 
+  * For inter process communication PF_KEY is used. Every message is replied to
+  * so all messages go by the msg_send_reply() routine.
   * 
   * For further details on the architecture nad hierachy of the databases 
   * please consult RFC 4301 section 4.4
@@ -47,22 +50,15 @@ extern "C" {
 /**
  * @brief   Default stack size to use for the IPsec Keyengine thread
  */
-#ifndef GNRC_IPSEC_STACK_SIZE
-#define GNRC_IPSEC_STACK_SIZE        (THREAD_STACKSIZE_DEFAULT)
+#ifndef GNRC_IPSEC_KEYENGINE_STACK_SIZE
+#define GNRC_IPSEC_KEYENGINE_STACK_SIZE        (THREAD_STACKSIZE_DEFAULT)
 #endif
 
 /**
  * @brief   Default priority for the IPsec Keyengine thread
  */
-#ifndef GNRC_IPSEC_PRIO
-#define GNRC_IPSEC_PRIO             (THREAD_PRIORITY_MAIN - 3)
-#endif
-
-/**
- * @brief   Default message queue size to use for the IPsec Keyengine thread.
- */
-#ifndef GNRC_IPSEC_MSG_QUEUE_SIZE
-#define GNRC_IPSEC_MSG_QUEUE_SIZE   (8U)
+#ifndef GNRC_IPSEC_KEYENGINE_PRIO
+#define GNRC_IPSEC_KEYENGINE_PRIO             (THREAD_PRIORITY_MAIN - 3)
 #endif
 
 /**
@@ -82,9 +78,9 @@ extern "C" {
  * to programmatically limit it. * 
  */
 #define MAX_IPSEC_DB_MEMORY     (4096U)
-#define MAX_SPD_CACHE_SIZE      (30 * sizeof(ipsec_sp_chache_t))
-#define MAX_SPD_O_CACHE_SIZE    (30 * sizeof(ipsec_sp_chache_t))
-#define MAX_SPD_I_CACHE_SIZE    (30 * sizeof(ipsec_sp_chache_t))
+#define MAX_SPD_CACHE_SIZE      (30 * sizeof(ipsec_sp_cache_t))
+#define MAX_SPD_O_CACHE_SIZE    (30 * sizeof(ipsec_sp_cache_t))
+#define MAX_SPD_I_CACHE_SIZE    (30 * sizeof(ipsec_sp_cache_t))
 #define MAX_SAD_CACHE_SIZE      (20 * sizeof(ipsec_sa_t))
 
 /**
@@ -143,12 +139,12 @@ typedef struct __attribute__((__packed__)) {
  * @brief   Security Policy Database (SPD) entry type 
  * 
  * rudimentary implementation not supporting ranges or wildcards, omitting
- * not needed fields like AH/ESP flag, Bypass DF bit. Consult RFC 4301 for 
- * more information.
+ * not needed fields like AH/ESP flag, Bypass DF bit. Consult RFC 4301 section
+ * 4.4.1.1. for more information.
  * 
  * We only support combined mode cypher, so only one field is needed. * 
  */
-typedef struct __attribute__((__packed__)) ipsec_sp_chache {
+typedef struct __attribute__((__packed__)) ipsec_sp_cache {
     ipv6_addr_t dst;
     ipv6_addr_t src;
     uint8_t nh;
@@ -161,11 +157,11 @@ typedef struct __attribute__((__packed__)) ipsec_sp_chache {
     ESP_cypher_t comb_cypher;
     ipv6_addr_t tunnel_src;
     ipv6_addr_t tunnel_dst;
-    ipsec_sa_t *sa;
+    uint32_t sa;
 } ipsec_sp_cache_t;
 
 /**
- * @brief   Security Policy Database CACHE (SPD chache) entry type 
+ * @brief   Security Policy Database CACHE (SPD cache) entry type 
  *  
  */
 typedef struct __attribute__((__packed__)) ipsec_sp {
@@ -207,13 +203,35 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void);
 /**
 * @brief   spd cache entry retrieval
 *
-* returns sp entry based os TS and generates it from SPD rules if needed
+* returns sp entry based on TS and generates it from SPD rules if needed
 *
-* @return ipsec_sp_chache_t
+* @return ipsec_sp_cache_t
 */
 const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
                         ipsec_traffic_selector_t ts);
 
+/**
+* @brief   sa entry retrieval
+*
+* returns sa entry based on SPI
+*
+* @return ipsec_sa_t
+*/
+const ipsec_sa_t *get_sa_by_spi(uint32_t spi);
+
+/**
+* @brief   inject spd and sa entries
+*
+* temporary solution for PoC and testing until pfkey or other message 
+* communication is established.
+*
+* @param[in] sp sp_chache entry to inject
+* @param[in] sa corresponding ipsec_sa_t or NULL
+*
+* @return  1 on success
+* @return -1 on failure
+*/
+int inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa);
 
 #ifdef __cplusplus
 }

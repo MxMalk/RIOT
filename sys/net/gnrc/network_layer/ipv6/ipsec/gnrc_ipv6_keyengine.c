@@ -7,8 +7,9 @@
  */
 
 #include <stdio.h>
-#include "net/gnrc/ipv6/ipsec/ipsec.h"
 #include "net/ipv6/addr.h"
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
+#include "net/gnrc/ipv6/ipsec/pfkeyv2.h"
 
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
 
@@ -20,8 +21,8 @@
 /* TODO: Implemented databases work by stack (FILO) principle */
 
 ipsec_sp_t *spd;
-ipsec_sp_chache_t *spd_i;
-ipsec_sp_chache_t *spd_o;
+ipsec_sp_cache_t *spd_i;
+ipsec_sp_cache_t *spd_o;
 ipsec_sa_t *sad;
 size_t spd_size;
 size_t spd_i_size;
@@ -31,22 +32,22 @@ size_t sad_size;
 static kernel_pid_t _pid = KERNEL_PID_UNDEF;
 
 #if ENABLE_DEBUG
-static char _stack[GNRC_IPSEC_STACK_SIZE + THREAD_EXTRA_STACKSIZE_PRINTF];
+static char _stack[GNRC_IPSEC_KEYENGINE_STACK_SIZE + THREAD_EXTRA_STACKSIZE_PRINTF];
 #else
-static char _stack[GNRC_IPSEC_STACK_SIZE];
+static char _stack[GNRC_IPSEC_KEYENGINE_STACK_SIZE];
 #endif
 
 /* Main event loop for keyengine */
 static void *_event_loop(void*);
 int _return_spd_conf(ipsec_sp_t*);
-int _fill_sp_cache_entry(ipsec_sp_chache_t*, ipsec_sp_t*, ipsec_traffic_selector_t);
+int _fill_sp_cache_entry(ipsec_sp_cache_t*, ipsec_sp_t*, ipsec_traffic_selector_t);
 
 kernel_pid_t gnrc_ipsec_keyengine_init(void) {
     if (_pid > KERNEL_PID_UNDEF) {
         return _pid;
     }
 
-    _pid = thread_create(_stack, sizeof(_stack), GNRC_IPSEC_PRIO,
+    _pid = thread_create(_stack, sizeof(_stack), GNRC_IPSEC_KEYENGINE_PRIO,
                          THREAD_CREATE_STACKTEST, _event_loop, NULL, "keyengine");
 
     return _pid;
@@ -75,7 +76,7 @@ int _db_init(void) {
     return 1;
 }
 
-ipsec_sp_chache_t* _add_sp_cache_entry(ipsec_sp_chache_t *sp, 
+ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp, 
                             TrafficMode_t traffic_mode) {
     void *db;
     size_t db_s;
@@ -94,32 +95,32 @@ ipsec_sp_chache_t* _add_sp_cache_entry(ipsec_sp_chache_t *sp,
             break;                
     }
 
-    size_t newsize = db_s + sizeof(ipsec_sp_chache_t);
+    size_t newsize = db_s + sizeof(ipsec_sp_cache_t);
     if(newsize > MAX_IPSEC_DB_MEMORY && newsize > max_db_s) {
         DEBUG("ipsec_keyeng: ERROR: Limits reached\n");
         return NULL;
     }
     db = realloc(db, newsize);
     if(db != NULL){
-        memcpy(((uint8_t*)(db) + db_s - 1), sp, sizeof(ipsec_sp_chache_t));
+        memcpy(((uint8_t*)(db) + db_s - 1), sp, sizeof(ipsec_sp_cache_t));
         db_s = newsize;
     } else {
         DEBUG("ipsec_keyeng: ERROR: HEAP space exhausted\n");
         return NULL;
     }
 
-    return (ipsec_sp_chache_t*)(((uint8_t*)(db) + db_s - 1) 
-                    + sizeof(ipsec_sp_chache_t));
+    return (ipsec_sp_cache_t*)(((uint8_t*)(db) + db_s - 1) 
+                    + sizeof(ipsec_sp_cache_t));
 
 }
 
-const ipsec_sp_chache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode, 
+const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode, 
                                                 ipsec_traffic_selector_t ts) {
 
     ipsec_sp_t *spd_result = NULL;;
     ipsec_sp_t *spd_rule;
-    ipsec_sp_chache_t *return_handle;                       
-    ipsec_sp_chache_t *sp_entry = NULL;
+    ipsec_sp_cache_t *return_handle;                       
+    ipsec_sp_cache_t *sp_entry = NULL;
 
     for(size_t i=0; i < spd_size; i = i + sizeof(ipsec_sp_t)) {
         spd_rule = (ipsec_sp_t*)((uint8_t*)spd + i);
@@ -155,7 +156,7 @@ const ipsec_sp_chache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
         }
     }
     //TODO: sourround with mem error catch code
-    sp_entry = malloc(sizeof(ipsec_sp_chache_t));
+    sp_entry = malloc(sizeof(ipsec_sp_cache_t));
     /* Call also generates SA for Tx traffic if needed */
     _fill_sp_cache_entry(sp_entry, spd_result, ts);
     return_handle = _add_sp_cache_entry(sp_entry, traffic_mode);
@@ -169,7 +170,7 @@ const ipsec_sp_chache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
     return return_handle;    
 }
 
-int _fill_sp_cache_entry(ipsec_sp_chache_t *sp_entry, ipsec_sp_t *spd_rule, 
+int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule, 
                             ipsec_traffic_selector_t ts) {
     sp_entry->dst = ts.dst;
     sp_entry->src = ts.src;
@@ -193,7 +194,7 @@ int _fill_sp_cache_entry(ipsec_sp_chache_t *sp_entry, ipsec_sp_t *spd_rule,
     return 1;
 }
 
-const ipsec_sp_chache_t *get_sp_entry(TrafficMode_t traffic_mode,
+const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
                             ipsec_traffic_selector_t ts) {    
     void *db;
     int db_s;
@@ -214,30 +215,30 @@ const ipsec_sp_chache_t *get_sp_entry(TrafficMode_t traffic_mode,
         return NULL;
     }
 
-    const ipsec_sp_chache_t *sp_entry;
-    for(int i=0; i < db_s; i = i + sizeof(ipsec_sp_chache_t)) {
-        sp_entry = (ipsec_sp_chache_t*)((uint8_t*)db + i);
-        if(!(ipv6_addr_equal(&sp_entry->dst, &ipv6_addr_unspecified) 
+    const ipsec_sp_cache_t *sp_entry;
+    for(int i=0; i < db_s; i = i + sizeof(ipsec_sp_cache_t)) {
+        sp_entry = (ipsec_sp_cache_t*)((uint8_t*)db + i);
+        if( ! (ipv6_addr_equal(&sp_entry->dst, &ipv6_addr_unspecified) 
                             || ipv6_addr_equal(&sp_entry->dst, &ts.dst))){
             break;
         }
-        if(!(ipv6_addr_equal(&sp_entry->src, &ipv6_addr_unspecified) 
+        if( ! (ipv6_addr_equal(&sp_entry->src, &ipv6_addr_unspecified) 
                             || ipv6_addr_equal(&sp_entry->src, &ts.src))){
             break;
         }
-        if(!(sp_entry->nh == 255 || sp_entry->nh == ts.nh)){
+        if(sp_entry->nh != 255 && sp_entry->nh != ts.nh ){
             break;
         }
-        if(!(sp_entry->dst_port == 0 || sp_entry->dst_port == ts.dst_port)){
+        if(sp_entry->dst_port != 0 && sp_entry->dst_port != ts.dst_port){
             break;
         }
-        if(!(sp_entry->src_port == 0 || sp_entry->dst_port == ts.src_port)){
+        if(sp_entry->src_port != 0 && sp_entry->dst_port != ts.src_port){
             break;
         }
         return sp_entry;
     }
 
-    /* No chache entries matched traffic slectors. Checking SPD rules */
+    /* No cache entries matched traffic slectors. Checking SPD rules */
    
     sp_entry = _generate_sp_from_spd(traffic_mode, ts);
     if(sp_entry == NULL) {
@@ -252,8 +253,11 @@ const ipsec_sp_chache_t *get_sp_entry(TrafficMode_t traffic_mode,
     return sp_entry;
 }
 
+ /* WIP solution for hardcoded SPD ruleset. Since we do not check the SPD 
+  * if there is a fitting chache entry, entries to this table aren't required
+  * for manual key and spd_cache injection. */
 int _return_spd_conf(ipsec_sp_t *spd) {
-    /* TODO: WIP solution for SPD */
+   
     ipsec_sp_t *spd_pointer;
     size_t size = 2 * sizeof(ipsec_sp_t);
     spd = malloc(size);
@@ -306,18 +310,117 @@ int _return_spd_conf(ipsec_sp_t *spd) {
     return size;
 }
 
+const ipsec_sa_t *get_sa_by_spi(uint32_t spi) {
+
+}
+
+int inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) { 
+    TrafficMode_t traffic_mode;
+    
+    if(sp->rule == GNRC_IPSEC_F_PROTECT) {
+        if(sa == NULL) {
+            DEBUG("ipsec_keyeng: sa musn't be NULL on PROTECT rules\n");
+            return -1;
+        }
+
+        // TODO: insert sa
+
+    }
+
+    /* Determine traffic mode for SP entry */  
+    if(gnrc_netif_get_by_ipv6_addr(sp->src) == NULL) {
+        if(gnrc_netif_get_by_ipv6_addr(sp->dst) == NULL) {
+            /* Traffic is routing traffic. Create SPD-O entry */
+            traffic_mode = GNRC_IPSEC_SND;
+        } else {
+            //Traffic is Rx. Crerate SPD-I
+            traffic_mode = GNRC_IPSEC_RCV;
+        }
+    } else {
+        //Traffic is loopback or Tx. Create SPD-O entry
+        traffic_mode = GNRC_IPSEC_SND;
+    }
+
+    if(!_add_sp_cache_entry(sp, traffic_mode)) {
+        DEBUG("ipsec_keyeng: sp chache entry could not be created\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+/* The procesing of the messages is very simplified here message queue and 
+ * paket handling will be needed to make this compatible to the reference 
+ * implementation. Maybe one could copy a fleshed out version from for example
+ * the openbsd kernel. */
+static int _msg_add(sadb_msg_t *sadb_msg){
+    sadb_sa_t *sa_ext;
+    sadb_ext_t *next_ext;
+    if(sizeof(sadb_msg_t) < sadb_msg->sadb_msg_len) {
+        next_ext = (uint8_t*)sadb_msg + sizeof(sadb_msg_t);
+        if(next_ext->sadb_ext_type == SADB_EXT_SA) {
+            sa_ext = next_ext;
+            _create_sa(sa_ext);
+        }
+    }
+    return 1;
+}
+
+static int _msg_update(sadb_msg_t *sadb_msg){
+    (void)sadb_msg;
+    return -1;
+}
+
+static int _msg_get(sadb_msg_t *sadb_msg, msg_t *reply_msg){
+    (void)sadb_msg;
+    (void)reply_msg;
+    return -1;
+}
+
+static int _msg_dump(sadb_msg_t *sadb_msg, msg_t *reply_msg){
+    (void)sadb_msg;
+    (void)reply_msg;
+    return -1;
+}
+
 static void *_event_loop(void *args) {
 
-    //TODO: create waiting for msg()
-    //TODO: Howto wait for ipsec AND pfkey requests/responses?
+    /* TODO: register timers with SADB_EXPIRE pf_key messages to the 
+     * operation system */
+    msg_t msg, reply;
+
     assert(_db_init());
 
     DEBUG("ipsec_keyeng: Thread initialized\n");
 
+    /* This is avery simplified and non standart implementation of pf_key 
+     * messaging.
+     * For a propper implementation a message pool is essential, thus we 
+     * are just following the basic priciples. The reply shemes
+     * are not according to standart. Refer to RFC2367 section 3.1 for
+     * correct messaging behaviour. */
     while (1) {
-        /* TODO: register timer, check databases for limits, 
-         * handle socket api requests */
-        thread_sleep();
+        msg_receive(&msg);
+        switch (msg.type) {
+            case SADB_ADD:
+                _msg_add(msg.content.ptr);
+                break;
+            case SADB_UPDATE:
+                _msg_update(msg.content.ptr);
+                break;
+            case SADB_GET:
+                if(_msg_get(msg.content.ptr, &reply)) {
+                    msg_reply(&msg, &reply);
+                }
+                break;
+            case SADB_DUMP:
+                if(_msg_dump(msg.content.ptr, &reply)) {
+                    msg_reply(&msg, &reply);
+                }   
+                break;
+            default:
+                DEBUG("ipsec_keyeng: msg type unsuported %i: ", msg.type);
+                break;
     }
 
     (void)args;

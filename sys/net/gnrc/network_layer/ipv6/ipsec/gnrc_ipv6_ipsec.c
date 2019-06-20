@@ -24,6 +24,7 @@
 
 static kernel_pid_t _pid = KERNEL_PID_UNDEF;
 
+
 #if ENABLE_DEBUG
 static char _stack[GNRC_IPSEC_STACK_SIZE + THREAD_EXTRA_STACKSIZE_PRINTF];
 #else
@@ -44,26 +45,34 @@ kernel_pid_t gnrc_ipsec_init(void) {
     return _pid;
 }
 
+/* Interim code to get the pf_key messages to the keyhandler */
+static kernel_pid_t _key_pid = KERNEL_PID_UNDEF;
+static void _set_keyhandler_pid(void) {
+    _key_pid = gnrc_ipsec_keyengine_init();
+}
+
+static void _send_pfkey_msg(msg_t *msg) {
+    msg_try_send(msg, _key_pid);
+}
+/* End of interim code */
+
 #ifdef ENABLE_DEBUG
 
 static void _ipv6_print_info(gnrc_pktsnip_t *pkt)
 {
-    gnrc_pktsnip_t *snip = NULL;
-    LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
-    ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)snip->data);
+    ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)pkt->data);
     static char addr_str[IPV6_ADDR_MAX_STR_LEN];    
     static char addr_str2[IPV6_ADDR_MAX_STR_LEN];
     ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
     ipv6_addr_to_str(addr_str2, &ipv6->src, sizeof(addr_str2));
     DEBUG("ipsec: PKT_INFO: SRC: %s   DST: %s\n", addr_str, addr_str2);
     DEBUG("ipsec: PKT_INFO: ipv6NH: %i", (int)ipv6->nh);
-    if (snip->next != NULL) {
-        DEBUG(" snipNH: %i\n", gnrc_nettype_to_protnum(snip->next->type));
+    if (pkt->next != NULL) {
+        DEBUG(" snipNH: %i\n", gnrc_nettype_to_protnum(pkt->next->type));
     } else {
         DEBUG("\n");
     }
 }
-
 
 void gnrc_ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
 	gnrc_pktsnip_t *snip = pkt;
@@ -79,6 +88,8 @@ void gnrc_ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
 		i++;
 	}
 }
+
+#endif /* ENABLE_DEBUG */
 
 /* Send to interface function identical with the last lines of the
  * sending process in ipv6 thread*/
@@ -108,8 +119,6 @@ static void _send_to_interface(gnrc_pktsnip_t *pkt)
             gnrc_pktbuf_release(pkt);
     }
 }
-
-#endif /* ENABLE_DEBUG */
 
 gnrc_pktsnip_t *gnrc_ipsec_handle_esp(gnrc_pktsnip_t *pkt) {
     /* TODO EXT header processing and stripping
@@ -145,7 +154,7 @@ FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
     return GNRC_IPSEC_F_BYPASS;
 }
 
-static const ipsec_sp_chache_t *_sp_from_packet(TrafficMode_t traffic_mode, 
+static const ipsec_sp_cache_t *_sp_from_packet(TrafficMode_t traffic_mode, 
                                                 gnrc_pktsnip_t *pkt) {
     gnrc_pktsnip_t *snip = NULL;
     ipsec_traffic_selector_t ts;
@@ -170,7 +179,7 @@ static void *_event_loop(void *args)
 
     /* register interest in all IPV6 packets */
     gnrc_netreg_register(GNRC_NETTYPE_IPV6_EXT_ESP, &me_reg);
-    
+    _set_keyhandler_pid();
     
     DEBUG("ipsec: thread up and running\n");
     /* start event loop */

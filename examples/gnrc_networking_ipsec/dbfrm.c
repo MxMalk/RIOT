@@ -19,12 +19,33 @@
  */
 
 #include <stdio.h>
-//#include "net/gnrc/ipv6/ipsec/pfkeyv2.h"
+#include "msg.h"
+#include "net/gnrc/ipv6/ipsec/pfkeyv2.h"
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
 
 static void _print_help(void) {
     /*TODO*/
-    printf("dbfrm: helper text\n");
+    printf("## dbfrm help:\n"
+        "Unused optional fields must be NULL'ed\n"
+        "{} fields can be NULL'ed when no SA is needed\n"
+        "Input string: action  {id}  {spi}  dst  src  proto  [port_dst] "
+        "[port_src] {mode}\n"
+        "\t{auth} {auth_key} {enc} {enc_key} [t_src] [t_dst]\n\n"
+        "action:\t\tprotect, bypass, discard\n"
+        "id:\t\tunique sa id (uint16)\n"
+        "spi:\t\tuint32\n"
+        "dst:\t\tipv6 address\n"
+        "src:\t\tipv6 address\n"
+        "proto:\t\tIP protnum or 'any'\n"
+        "port_dst:\tport/socket (uint16) or NULL\n"
+        "port_src:\tport/socket (uint16) or NULL\n"
+        "mode:\t\t'transport', 'tunnel'\n"
+        "auth:\t\t'none', 'sha'\n"
+        "auth_key:\t512bit key in lower case hex\n"
+        "enc:\t\t'none', 'sha', 'chacha'\n"
+        "enc_key:\t512bit key in lower case hex\n"
+        "t_src:\t\tipv6 address or NULL\n"
+        "t_dst:\t\tipv6 address or NULL\n");
 }
 
 bool _str_to_uint32(const char *str, uint32_t *res) {
@@ -95,14 +116,17 @@ bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
 
 /* ATM we do not handle combined cypher in this helper and we pass sa and spd 
  * information in the same call. For better usebility, splitting rule creation
- * and sa installation would be a good choice */
+ * and sa installation would be a good choice. For full compliance 
+ * refer to RFC4301 section 4.4.1.1. */
 static int _install_sa_hard(char *action, char *id, char *spi, char *dst, 
         char *src, char *proto,
         char *port_dst, char *port_src, char *mode, char *auth, char *auth_key,
-        char *enc, char *enc_key, char *t_src, char *t_dst, char *pmtu) {
+        char *enc, char *enc_key, char *t_src, char *t_dst) {
 
     ipsec_sa_t *sa = NULL;
-    ipsec_sp_cache_t *sp = NULL;        
+    ipsec_sp_cache_t *sp = NULL;  
+    msg_t *msg, *rpl;
+    sadb_msg_t *sadb_msg;
 
     if(strcmp(action, "protect")) {
         /* Create SA */
@@ -111,8 +135,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         if( ! ( _str_to_uint16(id, &sa->id) && 
             _str_to_uint32(spi, &sa->spi) &&
             _str_to_ipsec_key(enc_key, &sa->encr_key) &&
-            _str_to_ipsec_key(auth_key, &sa->auth_key)&&
-            _str_to_uint32(pmtu, sa->pmtu) ) ) {
+            _str_to_ipsec_key(auth_key, &sa->auth_key) ) ) {
                 printf("dbfrm: SA parsing unsuccessful\n");
                 free(sa);
                 return -1;
@@ -122,17 +145,24 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         sa->re_bc =     15728540; /* 15MB */
         sa->max_lt =    87000000;
         sa->max_bc =    16000000;
-        if(strcmp("trans", mode)) {
+        sa->pmtu =      1500; /* Ethernet PMTU */
+        if(strcmp("transport", mode)) {
             sa->mode = GNRC_IPSEC_M_TRANSPORT;
-        } else if (strcmp("tun", mode)) {
+        } else if (strcmp("tunnel", mode)) {
             sa->mode = GNRC_IPSEC_M_TUNNEL;
         } else {
             printf("dbfrm: SA mode parsing unsuccessful\n");
             free(sa);
             return -1;
-        }    
-        if((ipv6_addr_from_str(&sa->tunnel_dst, t_src) == NULL) ||
-        (ipv6_addr_from_str(&sa->tunnel_src, t_dst) == NULL) ) {
+        }
+        if(sa->mode == GNRC_IPSEC_M_TUNNEL){
+            if((ipv6_addr_from_str(&sa->tunnel_dst, t_src) == NULL) ||
+                (ipv6_addr_from_str(&sa->tunnel_src, t_dst) == NULL) ) {
+                    printf("dbfrm: Tunnel address parsing unsuccessful\n");
+                    free(sa);
+                    return -1;
+            }
+        } else {
             sa->tunnel_dst = ipv6_addr_unspecified;
             sa->tunnel_src = ipv6_addr_unspecified;
         }
@@ -148,12 +178,20 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             printf("dbfrm: SP IPv6 parsing unsuccessful\n");
             free(sp);
             return -1;
-    }    
-    /* TODO: What about the next header aka. Protocoll filter?? */
-    if( ! ( _str_to_uint8(proto, &sp->nh) &&
-        _str_to_uint16(port_dst, &sp->dst_port) && 
+    }
+    if( strcmp(proto, "any")) {
+        sp->nh = 255;
+    } else {
+        if( !_str_to_uint8(proto, &sp->nh)) {
+            printf("dbfrm: SP proto parsing unsuccessful\n");
+            free(sp);
+            return -1;
+        }
+    }
+
+    if( ! ( _str_to_uint16(port_dst, &sp->dst_port) && 
         _str_to_uint16(port_src, &sp->src_port) ) )  {
-            printf("dbfrm: SP parsing unsuccessful\n");
+            printf("dbfrm: SP port parsing unsuccessful\n");
             free(sp);
             return -1;
     }
@@ -168,6 +206,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         free(sp);
         return -1;
     }
+    /* only for protected traffic */
     if( sp->rule == GNRC_IPSEC_F_PROTECT ) {
         if(strcmp("none", enc)) {
             sp->encr_cypher = IPSEC_CYPHER_NONE;
@@ -189,26 +228,52 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             free(sp);
             return -1;
         }
+        if(strcmp("transport", mode)) {
+            sp->tun_mode = GNRC_IPSEC_M_TRANSPORT;
+        } else if (strcmp("tunnel", mode)) {
+            sp->tun_mode = GNRC_IPSEC_M_TUNNEL;
+            if((ipv6_addr_from_str(&sp->tunnel_dst, t_src) == NULL) ||
+                (ipv6_addr_from_str(&sp->tunnel_src, t_dst) == NULL )) {
+                    printf("dbfrm: Tunnel address faulty\n");
+                    free(sp);
+                    return -1;
+                }
+        } else {
+            printf("dbfrm: SP mode parsing unsuccessful\n");
+            free(sp);
+            return -1;
+        }
+        if(sa != NULL) {
+            sp->sa = sa->spi;
+        }
+        
     }
-    if(strcmp("trans", mode)) {
-        sp->tun_mode = GNRC_IPSEC_M_TRANSPORT;
-    } else if (strcmp("tun", mode)) {
-        sp->tun_mode = GNRC_IPSEC_M_TUNNEL;
-    } else {
-        printf("dbfrm: SP mode parsing unsuccessful\n");
+
+    /* instead of producing a very poor verison of the pf_key communication we
+     * take the shortcut and insert the sp and sa directly into the databases.
+     * Following code is kept for a small reference on how a pf_key call could
+     * be created and handled */
+    /*/
+    uint16_t sadb_msg_length = sizeof(sadb_msg_t) + sizeof(sadb_sa_t) + keys, etc... );
+    sadb_msg = malloc(sadb_msg_length);
+    sadb_msg->sadb_msg_len = sadb_msg_length
+        ...fill all fields
+    msg = malloc(sizeof(msg_t));
+    msg_send_receive(&msg, &rpl, gnrc_ipsec_keyengine_init());
+        ...process reply message
+    free(msg);
+    if(rpl != NULL) {
+        free(rpl);
+    } */
+
+    /* sa my be NULL */
+    if( ! inject_db_entries(sp, sa)) {
         free(sp);
+        free(sa);
         return -1;
     }
-    if(strcmp(action, "protect"))
-    if((ipv6_addr_from_str(&sp->tunnel_dst, t_src) == NULL) ||
-        (ipv6_addr_from_str(&sp->tunnel_src, t_dst) == NULL )) {
-            sp->tunnel_dst = ipv6_addr_unspecified;
-            sp->tunnel_src = ipv6_addr_unspecified;
-    }
-    sp->sa = &sa;
 
-    //TODO: add sp, register in system    
-
+    return 1;
 }
 
 int ipsec_sad_frm(int argc, char **argv) {
@@ -218,11 +283,11 @@ int ipsec_sad_frm(int argc, char **argv) {
         return 0;
     }
 
-    if(argc==16) {
+    if(argc==15) {
         /* Some sanity checks on the input are needed*/
         int result = _install_sa_hard(argv[1],argv[2],argv[3],argv[4],argv[5],
             argv[6],argv[7],argv[8],argv[9], argv[10], argv[11], argv[12], 
-            argv[13], argv[14], argv[15], argv[16]);
+            argv[13], argv[14], argv[15]);
         if(result!=0) {
             printf("dbfrm: No changes could be made. ERR_NR:%i\n", result);
         } else {

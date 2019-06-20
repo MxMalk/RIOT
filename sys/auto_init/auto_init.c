@@ -37,8 +37,9 @@
 #endif
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-#include "net/gnrc/ipv6/ipsec/ipsec.h"
+/* keyengine must be initialized fist */
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
+#include "net/gnrc/ipv6/ipsec/ipsec.h"
 #endif
 
 #ifdef MODULE_L2_PING

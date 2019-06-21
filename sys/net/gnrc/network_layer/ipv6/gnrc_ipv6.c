@@ -248,7 +248,7 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         gnrc_icmpv6_error_pkt_too_big_send(netif->ipv6.mtu, pkt);
         gnrc_pktbuf_release_error(pkt, EMSGSIZE);
         return;
-    }
+    } 
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
     switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
@@ -257,19 +257,22 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             break;
         case GNRC_IPSEC_F_PROTECT:
             DPRINT("ipv6_ipsec: SND PROTECT\n");
-            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+            /*if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
                 DPRINT("ipsec: no IPsec thread found\n");
                 gnrc_pktbuf_release(pkt);
-            }            
-            return;
+            }                   
+            return;   */ 
+            break; 
         case GNRC_IPSEC_F_DISCARD:
             DPRINT("ipv6_ipsec: SND DISCARD\n");
-            gnrc_pktbuf_release(pkt);
-            return;
+            /* gnrc_pktbuf_release(pkt);
+            return;*/
+            break;
         case GNRC_IPSEC_F_ERR:
             DPRINT("ipv6_ipsec: GNRC_IPSEC_F_ERR\n");
-            gnrc_pktbuf_release(pkt);
-            return;
+            /*gnrc_pktbuf_release(pkt);
+            return; */
+            break;
     }
 #endif
 
@@ -543,7 +546,10 @@ static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
 {
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    switch(gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {        
+    switch(gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) { 
+        /* TODO: incomplete ipv6 header, so we can't filter correctly
+         * try to split up error hanbdler further below and inject between
+         * hdr building and merging. */       
         case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: SND SELF BYPASS\n");
             break;
@@ -776,33 +782,35 @@ static void _receive(gnrc_pktsnip_t *pkt)
               "consumed due to it\n");
         return;
     } 
-    /* all ext headers must be marked before IPsec filtering */   
+    /* We have to analyse the unmarked packet, since we have no way to detect a
+    * valid ESP packet after ext_header processing and there are no SPD-I entries 
+    * for PROTECTED Rx traffic. */ 
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
+        /* PROTECTED packets are allready handled in ext processing */
+        case GNRC_IPSEC_F_BYPASS:
+            DPRINT("ipv6_ipsec: RCV BYPASS\n");
+            break;
+        case GNRC_IPSEC_F_PROTECT:
+            /* EXT header handling will process/reject ESP header */
+            DPRINT("ipv6_ipsec: RCV PROTECT\n");
+            break;
+        case GNRC_IPSEC_F_DISCARD:
+            /* DPRINT("ipv6_ipsec: RCV DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;*/
+        case GNRC_IPSEC_F_ERR:
+            /*DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
+            gnrc_pktbuf_release(pkt);
+            return*/;
+    }          
+#endif  
+
     if ((pkt = gnrc_ipv6_ext_process_all(pkt, &first_nh)) == NULL) {
         DEBUG("ipv6: packet was consumed in extension header handling\n");
         return;
     }
     /* At this point, all IPv6 headers are marked in pkt */
-
-#ifdef MODULE_GNRC_IPV6_IPSEC
-    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
-        /* PROTECT pkts are allready handled in ext processing */
-        case GNRC_IPSEC_F_BYPASS:
-            DPRINT("ipv6_ipsec: RCV BYPASS\n");
-            break;
-        case GNRC_IPSEC_F_PROTECT:
-        /* must never happen */
-            gnrc_pktbuf_release(pkt);
-            return;
-        case GNRC_IPSEC_F_DISCARD:
-            DPRINT("ipv6_ipsec: RCV DISCARD\n");
-            gnrc_pktbuf_release(pkt);
-            return;
-        case GNRC_IPSEC_F_ERR:
-            DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
-            gnrc_pktbuf_release(pkt);
-            return;
-    }          
-#endif
 
     if (_pkt_not_for_me(&netif, hdr)) { /* if packet is not for me */
         DEBUG("ipv6: packet destination not this host\n");

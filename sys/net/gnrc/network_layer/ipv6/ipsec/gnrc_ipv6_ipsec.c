@@ -12,6 +12,8 @@
 #include "utlist.h"
 #include "net/gnrc/nettype.h"
 #include "net/gnrc/ipv6/hdr.h"
+#include "net/gnrc/ipv6/ext.h"
+#include "net/udp.h"
 
 
 #include "net/gnrc/ipv6/ipsec/esp.h"
@@ -120,6 +122,28 @@ static void _send_to_interface(gnrc_pktsnip_t *pkt)
     }
 }
 
+/*TODO: documentation */
+static ipsec_ts_t _build_traffic_selector(ipv6_addr_t dst,
+        ipv6_addr_t src, uint8_t protnum, network_uint16_t *dst_port, 
+        network_uint16_t *src_port) {
+            
+    ipsec_ts_t ts;
+    ts.dst = dst;
+    ts.src = src;
+    ts.prot = protnum;
+    if(dst_port!=NULL) {
+        ts.dst_port = byteorder_ntohs(*dst_port);
+    } else {
+        ts.dst_port = -1;
+    }
+    if(src_port!=NULL) {
+        ts.src_port = byteorder_ntohs(*src_port);
+    } else {
+        ts.src_port = -1;
+    }
+    return ts;
+}
+
 gnrc_pktsnip_t *gnrc_ipsec_handle_esp(gnrc_pktsnip_t *pkt) {
     /* TODO EXT header processing and stripping
      * gnrc_pktbuf_start_write(pkt)
@@ -129,43 +153,91 @@ gnrc_pktsnip_t *gnrc_ipsec_handle_esp(gnrc_pktsnip_t *pkt) {
 
 FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode)
 {
+    const ipsec_sp_cache_t *sp;
     gnrc_pktsnip_t *snip;
+    ipv6_hdr_t *ipv6;
+    gnrc_pktsnip_t *payload_h;
+    ipsec_ts_t ts;
+    uint8_t ph_protnum;
+    bool iterate;
+    uint8_t tmp_protnum;
+    void* data_pointer;
+
     DEBUG("ipsec: spd_check\n");
-
-    if(mode == GNRC_IPSEC_RCV) {
-        LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6_EXT_ESP);
-        if (snip != NULL) {
-            DEBUG("ipsec: ESP header found\n");
-        }
-        (void)pkt;
-    }
-    if(mode == GNRC_IPSEC_SND) {
-        LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_UDP);
-        if (snip != NULL) {
-            DEBUG("ipsec: UDP Rx packet found\n");
-            //return GNRC_IPSEC_F_BYPASS;
-            return GNRC_IPSEC_F_PROTECT;
-        }
-        (void)pkt;
-    }
-#if 0
-    return GNRC_IPSEC_F_DISCARD;
-#endif
-    return GNRC_IPSEC_F_BYPASS;
-}
-
-static const ipsec_sp_cache_t *_sp_from_packet(TrafficMode_t traffic_mode, 
-                                                gnrc_pktsnip_t *pkt) {
-    gnrc_pktsnip_t *snip = NULL;
-    ipsec_traffic_selector_t ts;
     LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_IPV6);
-    ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)snip->data);
-    // TODO: if nh = UDP/TCP: SEARCH SCALAR for it and add port, else:
-    ts.dst = ipv6->dst;
-    ts.src = ipv6->src;
-    ts.dst_port = -1;
-    ts.src_port = -1;
-    return get_sp_entry(traffic_mode, ts);
+    ipv6 = snip->data;
+    /* iterate through all snips and search for a payload packet 
+     * if none is found, snip is last snip after this loop*/
+    while(iterate) {
+        switch( gnrc_nettype_to_protnum(snip->type) ) {
+            case PROTNUM_IPV6 ||
+                    PREV_HEADERS:    /* all pre payload header */
+                if(snip->next == NULL) {
+                    iterate = false;                    
+                } else {
+                    snip = snip->next;
+                }
+                break;
+            case PROTNUM_RESERVED:
+                DEBUG("ipsec: ERR strange snip. protnum 255\n");
+                return GNRC_IPSEC_F_ERR;
+            default:
+                payload_h = pkt->data;
+                ph_protnum = gnrc_nettype_to_protnum(pkt->type);
+                iterate = false;
+        }
+    }
+
+    /* iterate over data of last snip in search of payload */
+    if(payload_h == NULL) {
+        /* payload header is unmarked or has no payload snip is at last position */
+        tmp_protnum = gnrc_nettype_to_protnum(snip->type);
+        data_pointer = snip->data;
+
+        while(payload_h == NULL) {
+            /* check nh field in data and iterate */
+            switch( tmp_protnum ) {
+                case PROTNUM_IPV6:
+                    tmp_protnum = (int)((ipv6_hdr_t *)data_pointer)->nh;
+                    data_pointer = (uint8_t*)data_pointer + sizeof(ipv6_hdr_t);
+                    break;
+                case PREV_HEADERS:
+                    tmp_protnum = ((ipv6_ext_t *)data_pointer)->nh;
+                    data_pointer = (uint8_t*)data_pointer + sizeof(ipv6_ext_t);
+                    break;
+                /* if none of the above apply, we should have our payload field*/
+                default:
+                    payload_h = data_pointer;
+                    ph_protnum = tmp_protnum;
+            }
+        }
+    }
+
+    /* some payload types need special handling*/
+    switch(ph_protnum) {
+        /* Add UDP/TCP port numbers. Pointers are the same for UDP/TCP */
+        case PROTNUM_UDP || PROTNUM_TCP:
+            ts = _build_traffic_selector(ipv6->dst, ipv6->src, ph_protnum,
+                    &((udp_hdr_t*)payload_h->data)->dst_port,
+                    &((udp_hdr_t*)payload_h->data)->src_port );
+            break;
+        /* Rx ESP will handled in ext_handling, 
+         * Tx ESP is a tunneled packet and handled like any other payload */
+        case PROTNUM_IPV6_EXT_ESP:
+            if(mode == GNRC_IPSEC_RCV) {
+                    return GNRC_IPSEC_F_PROTECT;
+            }
+            __attribute__((fallthrough));
+        default:                
+            ts = _build_traffic_selector( ipv6->dst, ipv6->src, ph_protnum,
+                                            NULL, NULL);        
+    }
+    sp = get_sp_entry(mode, ts);
+    if(sp != NULL) {
+        return sp->rule;
+    }
+    DEBUG("ipsec: No SP matched the traffic selector\n");
+    return GNRC_IPSEC_F_DISCARD;
 }
 
 static void *_event_loop(void *args)
@@ -203,7 +275,9 @@ static void *_event_loop(void *args)
                     gnrc_pktbuf_release(pkt);
                 } */
                 pkt = msg.content.ptr;
-                esp_header_build(pkt, _sp_from_packet(GNRC_IPSEC_SND, pkt)->sa);
+                ipsec_ts_t ts = ts_from_pkt
+                uint32_t spi = get_sp_entry(GNRC_IPSEC_SND, ts)->sa;
+                esp_header_build(pkt, get_sa_by_spi(spi));
                 _send_to_interface(pkt);
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:

@@ -28,11 +28,12 @@
  * @return  pkt at ipv6 header with esp encasulated payload
  */
 gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, 
-		const ipsec_sa_t *sa_entry, uint8_t protnum_payload) {
+		const ipsec_sa_t *sa_entry) {
 	/*TODO: First check if TUNNEL OR TRANSPORT in sad_entry
 	 * if tunnel, there could be an ESP packet inside
 	 */
 	/* TODO: Demux different sp and sa infos */
+	//TODO: A LOT!
 	DEBUG("ipsec_esp: OUTGOING ESP PACKET:\nSA MODE: %i\n", sa_entry->mode);
 	
 	uint16_t payload_size;

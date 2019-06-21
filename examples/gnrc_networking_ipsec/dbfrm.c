@@ -19,6 +19,7 @@
  */
 
 #include <stdio.h>
+#include <assert.h>
 #include "msg.h"
 #include "net/gnrc/ipv6/ipsec/pfkeyv2.h"
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
@@ -52,7 +53,7 @@ bool _str_to_uint32(const char *str, uint32_t *res) {
     char *end;
     int errno = 0;
     long val = strtol(str, &end, 10);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= UINT32_MAX) {
+    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT32_MAX) {
         return false;
     }
     *res = (uint32_t)val;
@@ -63,7 +64,7 @@ bool _str_to_uint16(const char *str, uint16_t *res) {
     char *end;
     int errno = 0;
     long val = strtol(str, &end, 10);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= UINT16_MAX) {
+    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT16_MAX) {
         return false;
     }
     *res = (uint16_t)val;
@@ -74,7 +75,7 @@ bool _str_to_uint8(const char *str, uint8_t *res) {
     char *end;
     int errno = 0;
     long val = strtol(str, &end, 10);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= UINT8_MAX) {
+    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
         return false;
     }
     *res = (uint8_t)val;
@@ -85,7 +86,7 @@ bool _hex_to_uint8(const char *str, uint8_t *res) {
     char *end;
     int errno = 0;
     long val = strtol(str, &end, 16);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= UINT8_MAX) {
+    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
         return false;
     }
     *res = (uint8_t)val;
@@ -97,7 +98,7 @@ bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
     /* 1 byte == 2 hex chars */
     assert(strlen(str) == IPSEC_MAX_KEY_SIZE*2);
     /* check if string is valid hex */
-    for(int i = 0; i < strlen(str); i++) {
+    for(int i = 0; i < (int)strlen(str); i++) {
         char c = str[i];
         if(!( ((c > 47)&&(c < 58)) || 
                 ((c > 96)&&(c < 103)) || 
@@ -106,10 +107,10 @@ bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
             return false;
         }
     }
-    for(int i = 0; i < IPSEC_MAX_KEY_SIZE; i++) {        
+    for(int i = 0; i < (int)IPSEC_MAX_KEY_SIZE; i++) {        
         char* tmp_str;
-        strncpy(tmp_str, str + i*2, 2);
-        _hex_str_to_ipsec_key(tmp_str, key->key[i]);
+        tmp_str = strncpy(tmp_str, str + i*2, 2);
+        _hex_to_uint8(tmp_str, &key->key[i]);
     }
     return true;
 }
@@ -124,9 +125,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         char *enc, char *enc_key, char *t_src, char *t_dst) {
 
     ipsec_sa_t *sa = NULL;
-    ipsec_sp_cache_t *sp = NULL;  
-    msg_t *msg, *rpl;
-    sadb_msg_t *sadb_msg;
+    ipsec_sp_cache_t *sp = NULL; 
 
     if(strcmp(action, "protect")) {
         /* Create SA */
@@ -134,8 +133,8 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         /* everything not addressed was set zero by calloc */
         if( ! ( _str_to_uint16(id, &sa->id) && 
             _str_to_uint32(spi, &sa->spi) &&
-            _str_to_ipsec_key(enc_key, &sa->encr_key) &&
-            _str_to_ipsec_key(auth_key, &sa->auth_key) ) ) {
+            _hex_str_to_ipsec_key(enc_key, &sa->encr_key) &&
+            _hex_str_to_ipsec_key(auth_key, &sa->auth_key) ) ) {
                 printf("dbfrm: SA parsing unsuccessful\n");
                 free(sa);
                 return -1;
@@ -173,8 +172,8 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
 
     sp = calloc(1, sizeof(ipsec_sp_t));
     /* everything not addressed was set zero by calloc */
-    if((ipv6_addr_from_str(&sp->dst, t_src) == NULL) ||
-        (ipv6_addr_from_str(&sp->src, t_dst) == NULL) ) {
+    if((ipv6_addr_from_str(&sp->dst, dst) == NULL) ||
+        (ipv6_addr_from_str(&sp->src, src) == NULL) ) {
             printf("dbfrm: SP IPv6 parsing unsuccessful\n");
             free(sp);
             return -1;
@@ -253,7 +252,9 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
      * take the shortcut and insert the sp and sa directly into the databases.
      * Following code is kept for a small reference on how a pf_key call could
      * be created and handled */
-    /*/
+    /*     
+    msg_t *msg, *rpl;
+    sadb_msg_t *sadb_msg;
     uint16_t sadb_msg_length = sizeof(sadb_msg_t) + sizeof(sadb_sa_t) + keys, etc... );
     sadb_msg = malloc(sadb_msg_length);
     sadb_msg->sadb_msg_len = sadb_msg_length
@@ -266,7 +267,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         free(rpl);
     } */
 
-    /* sa my be NULL */
+    /* sa may be NULL */
     if( ! inject_db_entries(sp, sa)) {
         free(sp);
         free(sa);

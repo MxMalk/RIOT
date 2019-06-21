@@ -81,7 +81,7 @@ extern "C" {
 #define MAX_SPD_CACHE_SIZE      (30 * sizeof(ipsec_sp_cache_t))
 #define MAX_SPD_O_CACHE_SIZE    (30 * sizeof(ipsec_sp_cache_t))
 #define MAX_SPD_I_CACHE_SIZE    (30 * sizeof(ipsec_sp_cache_t))
-#define MAX_SAD_CACHE_SIZE      (20 * sizeof(ipsec_sa_t))
+#define MAX_SADB_SIZE      (20 * sizeof(ipsec_sa_t))
 
 /**
  * @brief   Dynamic IPsec databases
@@ -208,7 +208,7 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void);
 * @return ipsec_sp_cache_t
 */
 const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
-                        ipsec_traffic_selector_t ts);
+                        ipsec_ts_t ts);
 
 /**
 * @brief   sa entry retrieval

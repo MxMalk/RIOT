@@ -75,7 +75,8 @@ typedef struct __attribute__((packed)) {
 /**
 * @brief   build esp header
 *
-* @param[in] pkt head after ipv6 header build, accompanying spd_entry
+* @param[in] pkt head after ipv6 header build
+* TODO
 *
 * @return  pktsnip at IPv6 with ESP
 */

@@ -29,6 +29,13 @@
 #ifndef NET_GNRC_IPV6_IPSEC
 #define NET_GNRC_IPV6_IPSEC
 
+/* header protocol numbers to skip over for payload search */
+#define PREV_HEADERS    PROTNUM_IPV6_EXT_DST || \
+                        PROTNUM_IPV6_EXT_FRAG || \
+                        PROTNUM_IPV6_EXT_HOPOPT || \
+                        PROTNUM_IPV6_EXT_MOB || \
+                        PROTNUM_IPV6_EXT_RH
+
 
 #include "net/ipv6/addr.h"
 #include "kernel_types.h"
@@ -91,14 +98,17 @@ typedef enum FilterRule {
 #define GNRC_IPSEC_MSG_QUEUE_SIZE   (8U)
 #endif
 
+/**
+ * @brief Traffic Selector for IPsec database information
+ */
 typedef struct __attribute__((__packed__)) {
     ipv6_addr_t dst;
     ipv6_addr_t src;
-    uint8_t nh;
     //int to be NULL-able by -1
     int dst_port;
     int src_port;
-} ipsec_traffic_selector_t;
+    uint8_t prot;
+} ipsec_ts_t;
 
 /**
  * @brief   Initialization of the IPsec thread.

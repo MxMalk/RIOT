@@ -66,12 +66,12 @@ extern "C" {
      uint16_t sadb_msg_reserved;
      uint32_t sadb_msg_seq;
      uint32_t sadb_msg_pid;
-   } sadb_msg_t;
+   } pfkey_sadb_msg_t;
 
    typedef struct {
      uint16_t sadb_ext_len;
      uint16_t sadb_ext_type;
-   }sadb_ext_t;
+   } pfkey_sadb_ext_t;
 
    typedef struct {
      uint16_t sadb_sa_len;
@@ -82,7 +82,7 @@ extern "C" {
      uint8_t sadb_sa_auth;
      uint8_t sadb_sa_encrypt;
      uint32_t sadb_sa_flags;
-   }sadb_sa_t;
+   } pfkey_sadb_sa_t;
 
    struct sadb_lifetime {
      uint16_t sadb_lifetime_len;

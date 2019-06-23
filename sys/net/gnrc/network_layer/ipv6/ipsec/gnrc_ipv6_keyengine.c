@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include "net/ipv6/addr.h"
+#include "net/gnrc/netif/internal.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 #include "net/gnrc/ipv6/ipsec/pfkeyv2.h"
 
@@ -24,7 +25,7 @@ ipsec_sp_t *spd;
 ipsec_sp_cache_t *spd_i;
 ipsec_sp_cache_t *spd_o;
 ipsec_sa_t *sad;
-size_t spd_size;
+size_t spd_size;    //size in count
 size_t spd_i_size;
 size_t spd_o_size;
 size_t sad_size;
@@ -40,9 +41,20 @@ static char _stack[GNRC_IPSEC_KEYENGINE_STACK_SIZE];
 /* Main event loop for keyengine */
 static void *_event_loop(void*);
 int _return_spd_conf(ipsec_sp_t*);
-int _fill_sp_cache_entry(ipsec_sp_cache_t*, ipsec_sp_t*, ipsec_ts_t);
 
-kernel_pid_t gnrc_ipsec_keyengine_init(void) {
+/**
+ * @brief: fills the sp chache entry. 
+ * 
+ * param[in] ipsec_sa_t NULL for unprotected traffic. For protected Tx traffic
+ *              SA aquisition/generation is triggered.
+ * param[in] ipsec_sa_t For protected Rx traffic sa must be handed
+ * param[out] ipsec_sp_cache_t is filled by procedure
+ * 
+ */
+int _fill_sp_cache_entry(ipsec_sp_cache_t*, ipsec_sp_t*, ipsec_ts_t*, 
+                            TrafficMode_t, ipsec_sa_t*);
+
+kernel_pid_t ipsec_keyengine_init(void) {
     if (_pid > KERNEL_PID_UNDEF) {
         return _pid;
     }
@@ -53,14 +65,14 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void) {
     return _pid;
 }
 
-void _ipsec_parse_spd(ipsec_sp_t *db) {
+void _ipsec_parse_spd(void) {
     /* TODO: Comment on how this is not final */
     /* TODO: WIP solution for hardcoded SPD ruleset. Since we do not check the SPD 
     * if there is a fitting chache entry, entries to this table aren't required
     * for manual key and spd_cache injection. At least rename it*/
     ipsec_sp_t *spd_pointer;
-    spd_size = 2 * sizeof(ipsec_sp_t);
-    spd = malloc(spd_size);
+    spd_size = 2;
+    spd = malloc(spd_size * sizeof(ipsec_sp_t));
     spd_pointer = spd;
 
 /* SPD ENTRY NUMBER 1 */
@@ -86,7 +98,7 @@ void _ipsec_parse_spd(ipsec_sp_t *db) {
     
 
  /* SPD ENTRY NUMBER 2 */
-    spd_pointer = spd_pointer + sizeof(ipsec_sp_t);    
+    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
     ipv6_addr_from_str(&spd_pointer->dst, "fe80::1c32:e6ff:fea2:27e9");
     ipv6_addr_from_str(&spd_pointer->src, "::1");
     spd_pointer->nh = 50;
@@ -116,11 +128,13 @@ int _db_init(void) {
     spd_o_size = 0;
     sad_size = 0;
     
-    _ipsec_parse_spd(spd);
+    _ipsec_parse_spd();
     if(spd == NULL) {
         DEBUG("ipsec_keyeng: ERROR parsing spd info into memory\n");
         return -1;
     }
+    DEBUG("ipsec_keyeng: databases initialized\n"
+            "spd_size = %i\n", (int)spd_size);
 
     return 1;
 }
@@ -164,7 +178,7 @@ ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp,
 }
 
 ipsec_sa_t* _add_sa_entry(ipsec_sa_t *sa) {
-    if(get_sa_by_spi(sa->spi) != NULL) {
+    if(ipsec_get_sa_by_spi(sa->spi) != NULL) {
         DEBUG("ipsec_keyeng: ERROR: spi allready in use\n");
         return NULL;
     }
@@ -192,32 +206,33 @@ ipsec_sa_t* _add_sa_entry(ipsec_sa_t *sa) {
 }
 
 const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode, 
-                                                ipsec_ts_t ts) {
+                                                ipsec_ts_t* ts) {
 
     ipsec_sp_t *spd_result = NULL;;
     ipsec_sp_t *spd_rule;
     ipsec_sp_cache_t *return_handle;                       
     ipsec_sp_cache_t *sp_entry = NULL;
 
-    for(size_t i=0; i < spd_size; i = i + sizeof(ipsec_sp_t)) {
-        spd_rule = (ipsec_sp_t*)((uint8_t*)spd + i);
+    for(size_t i=0; i < spd_size; i++) {
+        spd_rule = (ipsec_sp_t*)( (uint8_t*)spd + (i * sizeof(ipsec_sp_t)) );
+        DEBUG("SPD_Nr:%i, Rule:%i\n", i, (int)spd_rule->rule);  //TODO: remove
         /* TODO: handle and accept ranges and subnets from spd entries*/
         if(!(ipv6_addr_equal(&spd_rule->dst, &ipv6_addr_unspecified)
-                        || ipv6_addr_equal(&spd_rule->src, &ts.src))){
-            break;
+                        || ipv6_addr_equal(&spd_rule->src, &ts->src))){
+            continue;
         }
         if(!(ipv6_addr_equal(&spd_rule->src, &ipv6_addr_unspecified)
-                        || ipv6_addr_equal(&spd_rule->src, &ts.src))){
-            break;
+                        || ipv6_addr_equal(&spd_rule->src, &ts->src))){
+            continue;
         }
-        if(!(spd_rule->nh == 255 || spd_rule->nh == ts.prot)){
-            break;
+        if(!(spd_rule->nh == 255 || spd_rule->nh == ts->prot)){
+            continue;
         }
-        if(!(spd_rule->dst_port == 0 || spd_rule->dst_port == ts.dst_port)){
-            break;
+        if(!(spd_rule->dst_port == 0 || spd_rule->dst_port == ts->dst_port)){
+            continue;
         }
-        if(!(spd_rule->src_port == 0 || spd_rule->dst_port == ts.src_port)){
-            break;
+        if(!(spd_rule->src_port == 0 || spd_rule->dst_port == ts->src_port)){
+            continue;
         }
         spd_result = spd_rule;
     }
@@ -235,7 +250,7 @@ const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
     //TODO: sourround with mem error catch code
     sp_entry = malloc(sizeof(ipsec_sp_cache_t));
     /* Call also generates SA for Tx traffic if needed */
-    _fill_sp_cache_entry(sp_entry, spd_result, ts);
+    _fill_sp_cache_entry(sp_entry, spd_result, ts, traffic_mode, NULL);
     return_handle = _add_sp_cache_entry(sp_entry, traffic_mode);
     free(sp_entry);
 
@@ -248,12 +263,13 @@ const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
 }
 
 int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule, 
-                            ipsec_ts_t ts) {
-    sp_entry->dst = ts.dst;
-    sp_entry->src = ts.src;
-    sp_entry->nh = ts.prot;
-    sp_entry->dst_port = ts.dst_port;
-    sp_entry->src_port = ts.src_port;
+                            ipsec_ts_t* ts, TrafficMode_t mode,
+                            ipsec_sa_t* sa) {
+    sp_entry->dst = ts->dst;
+    sp_entry->src = ts->src;
+    sp_entry->nh = ts->prot;
+    sp_entry->dst_port = ts->dst_port;
+    sp_entry->src_port = ts->src_port;
     sp_entry->rule = spd_rule->rule;
     sp_entry->tun_mode = spd_rule->tun_mode;
     sp_entry->encr_cypher = spd_rule->encr_cypher;
@@ -261,18 +277,30 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
     sp_entry->comb_cypher = spd_rule->comb_cypher;
     sp_entry->tunnel_src = spd_rule->tunnel_src;
     sp_entry->tunnel_dst = spd_rule->tunnel_dst;
-    //TODO: check if SA is needed and generate it
-    sp_entry->sa = NULL;
-    if(sp_entry->sa == NULL) {
-        DEBUG("ipsec_keyeng: SA could not be created\n");
-        return -1;
+
+    if(spd_rule->rule == GNRC_IPSEC_F_PROTECT) {
+        if(mode == GNRC_IPSEC_SND){
+            /**TODO: SA generation if traffic mode is SND.
+             * If multiple sps should share a SA, like for example in a 
+             * PROTECTED multicast group, aquisition should be triggered.
+             */
+        } else {
+            if(sa != NULL) {
+                sp_entry->sa = sa->spi;
+            } else {
+                DEBUG("ipsec_keyeng: sp generation: No SA given for PROTECTED Rx entry\n");
+                return -1;
+            }
+        }       
+    } else {
+        sp_entry->sa = 0;
     }
 
     return 1;
 }
 
-const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
-                            ipsec_ts_t ts) {    
+const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
+                            ipsec_ts_t* ts) {
     void *db;
     int db_s;
     switch(traffic_mode) {
@@ -286,31 +314,31 @@ const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
             break;                
     }
 
-    if(db_s == 0) {
-        DEBUG("ipsec_keyengine: Requested sp_db empty or uninitalized\n");
-    } else {
+    if(spd_size == 0) {
+        DEBUG("ipsec_keyeng: ERROR SPD empty or uninitalized\n");
         return NULL;
     }
 
     const ipsec_sp_cache_t *sp_entry;
-    for(int i=0; i < db_s; i = i + sizeof(ipsec_sp_cache_t)) {
-        sp_entry = (ipsec_sp_cache_t*)((uint8_t*)db + i);
+    for(int i=0; i < db_s; i++) {
+        sp_entry = (ipsec_sp_cache_t*)( (uint8_t*)db + (i * sizeof(ipsec_sp_cache_t)) );
+        DEBUG("DB_Nr:%i, Rule:%i\n", i, (int)sp_entry->rule); //TODO: remove
         if( ! (ipv6_addr_equal(&sp_entry->dst, &ipv6_addr_unspecified) 
-                            || ipv6_addr_equal(&sp_entry->dst, &ts.dst))){
-            break;
+                            || ipv6_addr_equal(&sp_entry->dst, &ts->dst))){
+            continue;
         }
         if( ! (ipv6_addr_equal(&sp_entry->src, &ipv6_addr_unspecified) 
-                            || ipv6_addr_equal(&sp_entry->src, &ts.src))){
-            break;
+                            || ipv6_addr_equal(&sp_entry->src, &ts->src))){
+            continue;
         }
-        if(sp_entry->nh != 255 && sp_entry->nh != ts.prot ){
-            break;
+        if(sp_entry->nh != 255 && sp_entry->nh != ts->prot ){
+            continue;
         }
-        if(sp_entry->dst_port != 0 && sp_entry->dst_port != ts.dst_port){
-            break;
+        if(sp_entry->dst_port != 0 && sp_entry->dst_port != ts->dst_port){
+            continue;
         }
-        if(sp_entry->src_port != 0 && sp_entry->dst_port != ts.src_port){
-            break;
+        if(sp_entry->src_port != 0 && sp_entry->dst_port != ts->src_port){
+            continue;
         }
         return sp_entry;
     }
@@ -320,9 +348,9 @@ const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
     sp_entry = _generate_sp_from_spd(traffic_mode, ts);
     if(sp_entry == NULL) {
         if(traffic_mode == GNRC_IPSEC_SND) {
-            DEBUG("ipsec_keyeng: Error in Tx SP generation\n");
+            DEBUG("ipsec_keyeng: ERROR: Tx SP entry generation failed\n");
         } else {
-            DEBUG("ipsec_keyeng: Error in Rx SP generation\n");
+            DEBUG("ipsec_keyeng: ERROR: Rx SP entry generation failed\n");
         }
         return NULL;
     }
@@ -330,18 +358,18 @@ const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
     return sp_entry;
 }
 
-const ipsec_sa_t *get_sa_by_spi(uint32_t spi) {
-    sadb_sa_t* sa_entry;
-    for(int i = 0; i < spd_size; i++) {
-        sa_entry = (uint8_t*)spd + i * sizeof(sadb_sa_t);
-        if(sa_entry->sadb_sa_spi == spi) {
+const ipsec_sa_t *ipsec_get_sa_by_spi(uint32_t spi) {
+    ipsec_sa_t* sa_entry;
+    for(int i = 0; i < (int)spd_size; i++) {
+        sa_entry = (ipsec_sa_t*)( (uint8_t*)spd + ( i * sizeof(ipsec_sa_t)) );
+        if(sa_entry->spi == spi) {
             return sa_entry;
         }
     }
     return NULL;
 }
 
-int inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) { 
+int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) { 
     TrafficMode_t traffic_mode;
     
     if(sp->rule == GNRC_IPSEC_F_PROTECT) {
@@ -353,10 +381,9 @@ int inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) {
         // TODO: insert sa
 
     }
-
     /* Determine traffic mode for SP entry */  
-    if(gnrc_netif_get_by_ipv6_addr(sp->src) == NULL) {
-        if(gnrc_netif_get_by_ipv6_addr(sp->dst) == NULL) {
+    if(gnrc_netif_get_by_ipv6_addr(&sp->src) == NULL) {
+        if(gnrc_netif_get_by_ipv6_addr(&sp->dst) == NULL) {
             /* Traffic is routing traffic. Create SPD-O entry */
             traffic_mode = GNRC_IPSEC_SND;
         } else {
@@ -380,31 +407,32 @@ int inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) {
  * paket handling will be needed to make this compatible to the reference 
  * implementation. Maybe one could copy a fleshed out version from for example
  * the openbsd kernel. */
-static int _msg_add(sadb_msg_t *sadb_msg){
-    sadb_sa_t *sa_ext;
-    sadb_ext_t *next_ext;
-    if(sizeof(sadb_msg_t) < sadb_msg->sadb_msg_len) {
-        next_ext = (uint8_t*)sadb_msg + sizeof(sadb_msg_t);
+static int _msg_add(pfkey_sadb_msg_t *sadb_msg){
+    pfkey_sadb_sa_t *sa_ext;
+    pfkey_sadb_ext_t *next_ext;
+    if(sizeof(pfkey_sadb_msg_t) < sadb_msg->sadb_msg_len) {
+        next_ext = (pfkey_sadb_ext_t*)( (uint8_t*)sadb_msg + sizeof(pfkey_sadb_msg_t) );
         if(next_ext->sadb_ext_type == SADB_EXT_SA) {
-            sa_ext = next_ext;
-            _create_sa(sa_ext);
+            sa_ext = (pfkey_sadb_sa_t*)next_ext;
+            //TODO: _create_sa(sa_ext);
+            (void)sa_ext;
         }
     }
     return 1;
 }
 
-static int _msg_update(sadb_msg_t *sadb_msg){
+static int _msg_update(pfkey_sadb_msg_t *sadb_msg){
     (void)sadb_msg;
     return -1;
 }
 
-static int _msg_get(sadb_msg_t *sadb_msg, msg_t *reply_msg){
+static int _msg_get(pfkey_sadb_msg_t *sadb_msg, msg_t *reply_msg){
     (void)sadb_msg;
     (void)reply_msg;
     return -1;
 }
 
-static int _msg_dump(sadb_msg_t *sadb_msg, msg_t *reply_msg){
+static int _msg_dump(pfkey_sadb_msg_t *sadb_msg, msg_t *reply_msg){
     (void)sadb_msg;
     (void)reply_msg;
     return -1;
@@ -448,9 +476,8 @@ static void *_event_loop(void *args) {
             default:
                 DEBUG("ipsec_keyeng: msg type unsuported %i: ", msg.type);
                 break;
+        }
     }
-
     (void)args;
-
     return NULL;
 }

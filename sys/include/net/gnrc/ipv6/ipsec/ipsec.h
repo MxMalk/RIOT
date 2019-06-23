@@ -29,14 +29,6 @@
 #ifndef NET_GNRC_IPV6_IPSEC
 #define NET_GNRC_IPV6_IPSEC
 
-/* header protocol numbers to skip over for payload search */
-#define PREV_HEADERS    PROTNUM_IPV6_EXT_DST || \
-                        PROTNUM_IPV6_EXT_FRAG || \
-                        PROTNUM_IPV6_EXT_HOPOPT || \
-                        PROTNUM_IPV6_EXT_MOB || \
-                        PROTNUM_IPV6_EXT_RH
-
-
 #include "net/ipv6/addr.h"
 #include "kernel_types.h"
 #include "net/gnrc/pkt.h"
@@ -104,9 +96,8 @@ typedef enum FilterRule {
 typedef struct __attribute__((__packed__)) {
     ipv6_addr_t dst;
     ipv6_addr_t src;
-    //int to be NULL-able by -1
-    int dst_port;
-    int src_port;
+    int dst_port; //NULL when -1
+    int src_port; //NULL when -1
     uint8_t prot;
 } ipsec_ts_t;
 
@@ -118,20 +109,40 @@ typedef struct __attribute__((__packed__)) {
  * @return  -EOVERFLOW, if there are too many threads running already
  * @return  -EEXIST, if IPsec was already initialized.
  */
-kernel_pid_t gnrc_ipsec_init(void);
+kernel_pid_t ipsec_init(void);
 
 /**
- * @brief   SPD-I and SPD-O and SPD checking without triggering SAD creation
- * 
- *          This enables the ipv6 thread to check on SPD rules without beeing
- *          blocked by network traffic like IKEv2 negotiations.
+ * @brief   TODO: 
  *
- * @param[in] pkt   IPv6 packet
+ * @param[in] pkt   IPv6 containing packet
  * @param[in] mode  Flag for incomming or outgoing traffic
  *
  * @return  
  */
-FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode);
+ipsec_ts_t* ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts,
+                TrafficMode_t t_mode);
+
+/**
+ * @brief   TODO: 
+ *
+ * @param[in] 
+ *
+ * @return  
+ */
+ipsec_ts_t* ipsec_ts_from_info(ipv6_addr_t, ipv6_addr_t, uint8_t, 
+                network_uint16_t*, network_uint16_t*, ipsec_ts_t*);
+
+/**
+ * @ brief: TODO: SPD-I and SPD-O and SPD checking without triggering SAD creation
+ * 
+ *          This enables the ipv6 thread to check on SPD rules without beeing
+ *          blocked by network traffic like IKEv2 negotiations.
+ *
+ * @param[in] mode  Flag for incomming or outgoing traffic
+ * @param[in] ts    Traffic selector generated from pkt
+ * 
+ */
+FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t* ts);
 
 /**
  * @brief   ESP header handler for incomming ESP traffic
@@ -140,10 +151,10 @@ FilterRule_t gnrc_ipsec_spd_check(gnrc_pktsnip_t *pkt, TrafficMode_t mode);
  *
  * @return ESP processed IPv6 packet with pkt snip pointer to previous header
  */
-gnrc_pktsnip_t *gnrc_ipsec_handle_esp(gnrc_pktsnip_t *pkt);
+gnrc_pktsnip_t *ipsec_handle_esp(gnrc_pktsnip_t *pkt);
 
 //TODO: move or remove after DEV
-void gnrc_ipsec_show_pkt(gnrc_pktsnip_t *pkt);
+void ipsec_show_pkt(gnrc_pktsnip_t *pkt);
 
 #ifdef __cplusplus
 }

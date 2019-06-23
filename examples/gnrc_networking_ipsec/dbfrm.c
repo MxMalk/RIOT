@@ -260,7 +260,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     sadb_msg->sadb_msg_len = sadb_msg_length
         ...fill all fields
     msg = malloc(sizeof(msg_t));
-    msg_send_receive(&msg, &rpl, gnrc_ipsec_keyengine_init());
+    msg_send_receive(&msg, &rpl, ipsec_keyengine_init());
         ...process reply message
     free(msg);
     if(rpl != NULL) {
@@ -268,7 +268,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     } */
 
     /* sa may be NULL */
-    if( ! inject_db_entries(sp, sa)) {
+    if( ! ipsec_inject_db_entries(sp, sa)) {
         free(sp);
         free(sa);
         return -1;

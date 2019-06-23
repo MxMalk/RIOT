@@ -133,8 +133,8 @@ void auto_init(void)
 #endif
 #ifdef MODULE_GNRC_IPV6_IPSEC
     DEBUG("Auto init gnrc_ipsec modules.\n");
-    gnrc_ipsec_init();
-    gnrc_ipsec_keyengine_init();
+    ipsec_init();
+    ipsec_keyengine_init();
 #endif
 #ifdef MODULE_GNRC_UDP
     DEBUG("Auto init UDP module.\n");

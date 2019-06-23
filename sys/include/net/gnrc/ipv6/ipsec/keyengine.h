@@ -157,7 +157,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp_cache {
     ESP_cypher_t comb_cypher;
     ipv6_addr_t tunnel_src;
     ipv6_addr_t tunnel_dst;
-    uint32_t sa;
+    uint32_t sa;                // 0 if associated with no SA 
 } ipsec_sp_cache_t;
 
 /**
@@ -198,7 +198,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp {
  * @return  -EOVERFLOW, if there are too many threads running already
  * @return  -EEXIST, if Thread was already initialized.
  */
-kernel_pid_t gnrc_ipsec_keyengine_init(void);
+kernel_pid_t ipsec_keyengine_init(void);
 
 /**
 * @brief   spd cache entry retrieval
@@ -207,8 +207,8 @@ kernel_pid_t gnrc_ipsec_keyengine_init(void);
 *
 * @return ipsec_sp_cache_t
 */
-const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
-                        ipsec_ts_t ts);
+const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
+                        ipsec_ts_t* ts);
 
 /**
 * @brief   sa entry retrieval
@@ -217,7 +217,7 @@ const ipsec_sp_cache_t *get_sp_entry(TrafficMode_t traffic_mode,
 *
 * @return ipsec_sa_t
 */
-const ipsec_sa_t *get_sa_by_spi(uint32_t spi);
+const ipsec_sa_t *ipsec_get_sa_by_spi(uint32_t spi);
 
 /**
 * @brief   inject spd and sa entries
@@ -231,7 +231,7 @@ const ipsec_sa_t *get_sa_by_spi(uint32_t spi);
 * @return  1 on success
 * @return -1 on failure
 */
-int inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa);
+int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa);
 
 #ifdef __cplusplus
 }

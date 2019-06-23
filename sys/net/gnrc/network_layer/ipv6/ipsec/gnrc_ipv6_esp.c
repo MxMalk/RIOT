@@ -192,6 +192,6 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt) {
 		/* prev header is ext header */ 
 		((ipv6_ext_t*)next_snip->data)->nh = nh;
 	}
-	gnrc_ipsec_show_pkt(pkt);
+	ipsec_show_pkt(pkt);
 	return pkt;
 }

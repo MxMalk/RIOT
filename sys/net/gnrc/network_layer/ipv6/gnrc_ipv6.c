@@ -251,7 +251,13 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     } 
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) {
+    ipsec_ts_t ts;
+    if(ipsec_ts_from_pkt(pkt, &ts, GNRC_IPSEC_SND) == NULL) {
+        DPRINT("ipv6_ipsec: couldn't create traffic selector. Release pkt\n");
+        gnrc_pktbuf_release_error(pkt, EPROTO);
+        return;          
+    }
+    switch (ipsec_get_filter_rule(GNRC_IPSEC_SND, &ts)) {
         case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: SND BYPASS\n");
             break;
@@ -544,12 +550,16 @@ static void _send_multicast(gnrc_pktsnip_t *pkt, bool prep_hdr,
 static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
                           gnrc_netif_t *netif)
 {
+    bool success = _safe_fill_ipv6_hdr(netif, pkt, prep_hdr);
 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    switch(gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_SND)) { 
-        /* TODO: incomplete ipv6 header, so we can't filter correctly
-         * try to split up error hanbdler further below and inject between
-         * hdr building and merging. */       
+    ipsec_ts_t ts;
+    if(ipsec_ts_from_pkt(pkt, &ts, GNRC_IPSEC_SND) == NULL) {
+        DPRINT("ipv6_ipsec: couldn't create traffic selector\n");
+        gnrc_pktbuf_release_error(pkt, EPROTO);
+        return;          
+    }
+    switch (ipsec_get_filter_rule(GNRC_IPSEC_SND, &ts)) { 
         case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: SND SELF BYPASS\n");
             break;
@@ -560,7 +570,7 @@ static void _send_to_self(gnrc_pktsnip_t *pkt, bool prep_hdr,
     }
 #endif
 
-    if (!_safe_fill_ipv6_hdr(netif, pkt, prep_hdr) ||
+    if (!success ||
         /* no netif header so we just merge the whole packet. */
         (gnrc_pktbuf_merge(pkt) != 0)) {
         DEBUG("ipv6: error looping packet to sender.\n");
@@ -782,11 +792,17 @@ static void _receive(gnrc_pktsnip_t *pkt)
               "consumed due to it\n");
         return;
     } 
-    /* We have to analyse the unmarked packet, since we have no way to detect a
-    * valid ESP packet after ext_header processing and there are no SPD-I entries 
-    * for PROTECTED Rx traffic. */ 
+    /**We have to analyse the unmarked packet, since we have no way to detect a
+     * valid ESP packet after ext_header processing removed it and there are no
+     * SPD-I entries for PROTECTED Rx traffic. */ 
 #ifdef MODULE_GNRC_IPV6_IPSEC
-    switch (gnrc_ipsec_spd_check(pkt, GNRC_IPSEC_RCV)) {
+    ipsec_ts_t ts;
+    if(ipsec_ts_from_pkt(pkt, &ts, GNRC_IPSEC_RCV) == NULL) {
+        DPRINT("ipv6_ipsec: couldn't create traffic selector\n");
+        gnrc_pktbuf_release_error(pkt, EPROTO);
+        return;          
+    }
+    switch (ipsec_get_filter_rule(GNRC_IPSEC_RCV, &ts)) {
         /* PROTECTED packets are allready handled in ext processing */
         case GNRC_IPSEC_F_BYPASS:
             DPRINT("ipv6_ipsec: RCV BYPASS\n");

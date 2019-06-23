@@ -32,6 +32,7 @@
 #include "net/ipv6/addr.h"
 #include "kernel_types.h"
 #include "net/gnrc/pkt.h"
+#include "net/gnrc/ipv6/ipsec/ts.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,7 +44,7 @@ extern "C" {
 typedef enum TrafficMode {
     GNRC_IPSEC_RCV = 0,
     GNRC_IPSEC_SND = 1
-}TrafficMode_t;
+} TrafficMode_t;
 
 /**
  * @brief   Tunnel mode
@@ -90,16 +91,6 @@ typedef enum FilterRule {
 #define GNRC_IPSEC_MSG_QUEUE_SIZE   (8U)
 #endif
 
-/**
- * @brief Traffic Selector for IPsec database information
- */
-typedef struct __attribute__((__packed__)) {
-    ipv6_addr_t dst;
-    ipv6_addr_t src;
-    int dst_port; //NULL when -1
-    int src_port; //NULL when -1
-    uint8_t prot;
-} ipsec_ts_t;
 
 /**
  * @brief   Initialization of the IPsec thread.
@@ -110,27 +101,6 @@ typedef struct __attribute__((__packed__)) {
  * @return  -EEXIST, if IPsec was already initialized.
  */
 kernel_pid_t ipsec_init(void);
-
-/**
- * @brief   TODO: 
- *
- * @param[in] pkt   IPv6 containing packet
- * @param[in] mode  Flag for incomming or outgoing traffic
- *
- * @return  
- */
-ipsec_ts_t* ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts,
-                TrafficMode_t t_mode);
-
-/**
- * @brief   TODO: 
- *
- * @param[in] 
- *
- * @return  
- */
-ipsec_ts_t* ipsec_ts_from_info(ipv6_addr_t, ipv6_addr_t, uint8_t, 
-                network_uint16_t*, network_uint16_t*, ipsec_ts_t*);
 
 /**
  * @ brief: TODO: SPD-I and SPD-O and SPD checking without triggering SAD creation
@@ -144,6 +114,7 @@ ipsec_ts_t* ipsec_ts_from_info(ipv6_addr_t, ipv6_addr_t, uint8_t,
  */
 FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t* ts);
 
+
 /**
  * @brief   ESP header handler for incomming ESP traffic
  *
@@ -153,8 +124,10 @@ FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t* ts);
  */
 gnrc_pktsnip_t *ipsec_handle_esp(gnrc_pktsnip_t *pkt);
 
+
 //TODO: move or remove after DEV
 void ipsec_show_pkt(gnrc_pktsnip_t *pkt);
+
 
 #ifdef __cplusplus
 }

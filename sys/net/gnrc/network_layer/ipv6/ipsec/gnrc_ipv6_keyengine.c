@@ -25,9 +25,9 @@ ipsec_sp_t *spd;
 ipsec_sp_cache_t *spd_i;
 ipsec_sp_cache_t *spd_o;
 ipsec_sa_t *sad;
-size_t spd_size;    //size in count
-size_t spd_i_size;
-size_t spd_o_size;
+size_t spd_size;    //size in byte
+size_t spd_i_size;  //etc
+size_t spd_o_size;  
 size_t sad_size;
 
 static kernel_pid_t _pid = KERNEL_PID_UNDEF;
@@ -71,8 +71,8 @@ void _ipsec_parse_spd(void) {
     * if there is a fitting chache entry, entries to this table aren't required
     * for manual key and spd_cache injection. At least rename it*/
     ipsec_sp_t *spd_pointer;
-    spd_size = 2;
-    spd = malloc(spd_size * sizeof(ipsec_sp_t));
+    spd_size = 4 * sizeof(ipsec_sp_t);
+    spd = malloc(spd_size);
     spd_pointer = spd;
 
 /* SPD ENTRY NUMBER 1 */
@@ -99,13 +99,58 @@ void _ipsec_parse_spd(void) {
 
  /* SPD ENTRY NUMBER 2 */
     spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
-    ipv6_addr_from_str(&spd_pointer->dst, "fe80::1c32:e6ff:fea2:27e9");
-    ipv6_addr_from_str(&spd_pointer->src, "::1");
+    ipv6_addr_from_str(&spd_pointer->dst, "fe80::5c64:73ff:fef9:7c3");
+    ipv6_addr_from_str(&spd_pointer->src, "fe80::c8ff:e6ff:feed:7e8c");
     spd_pointer->nh = 50;
+    spd_pointer->dst_port = 0;    
+    spd_pointer->src_port = 0;
+
+    spd_pointer->rule = GNRC_IPSEC_F_PROTECT; 
+    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
+    spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
+
+    spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
+    spd_pointer->comb_cypher = IPSEC_CYPHER_NONE;
+    spd_pointer->tunnel_src = ipv6_addr_unspecified;
+
+    spd_pointer->tunnel_dst = ipv6_addr_unspecified;
+    spd_pointer->dst_range = ipv6_addr_unspecified;
+    spd_pointer->src_range = ipv6_addr_unspecified;
+    spd_pointer->dst_port_range = 0;
+    spd_pointer->src_port_range = 0;
+
+ /* SPD ENTRY NUMBER 3 */
+    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    ipv6_addr_from_str(&spd_pointer->dst, "fe80::5c64:73ff:fef9:7c3");
+    ipv6_addr_from_str(&spd_pointer->src, "fe80::c8ff:e6ff:feed:7e8c");
+    spd_pointer->nh = 17;
     spd_pointer->dst_port = 666;    
     spd_pointer->src_port = 666;
 
     spd_pointer->rule = GNRC_IPSEC_F_PROTECT; 
+    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
+    spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
+
+    spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
+    spd_pointer->comb_cypher = IPSEC_CYPHER_NONE;
+    spd_pointer->tunnel_src = ipv6_addr_unspecified;
+
+    spd_pointer->tunnel_dst = ipv6_addr_unspecified;
+    spd_pointer->dst_range = ipv6_addr_unspecified;
+    spd_pointer->src_range = ipv6_addr_unspecified;
+    spd_pointer->dst_port_range = 0;
+    spd_pointer->src_port_range = 0;
+
+ /* SPD ENTRY NUMBER 4 */
+    /* entry should use a range, but range detection is not implemented */
+    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    spd_pointer->dst = ipv6_addr_unspecified;
+    spd_pointer->src = ipv6_addr_unspecified;
+    spd_pointer->nh = 255;
+    spd_pointer->dst_port = 0;    
+    spd_pointer->src_port = 0;
+
+    spd_pointer->rule = GNRC_IPSEC_F_DISCARD; 
     spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
     spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
 
@@ -134,45 +179,53 @@ int _db_init(void) {
         return -1;
     }
     DEBUG("ipsec_keyeng: databases initialized\n"
-            "spd_size = %i\n", (int)spd_size);
+            "spd_size = %i, c = %i\n", (int)spd_size, (int)(spd_size/sizeof(ipsec_sp_t)));
 
     return 1;
 }
 
 ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp, 
                             TrafficMode_t traffic_mode) {
-    void *db;
-    size_t db_s;
+    ipsec_sp_cache_t **db;
+    size_t *db_s;
     size_t max_db_s;
+    size_t newsize;
 
     switch(traffic_mode) {
         case GNRC_IPSEC_RCV:
-            db = spd_i;
-            db_s = spd_i_size;
+            db = &spd_i;
+            db_s = &spd_i_size;
             max_db_s = MAX_SPD_I_CACHE_SIZE;
             break;
         case GNRC_IPSEC_SND:
-            db = spd_o;
-            db_s = spd_o_size;
+            db = &spd_o;
+            db_s = &spd_o_size;
             max_db_s = MAX_SPD_O_CACHE_SIZE;
             break;                
     }
-
-    size_t newsize = db_s + sizeof(ipsec_sp_cache_t);
+    
+    newsize = (*db_s + sizeof(ipsec_sp_cache_t));    
     if(newsize > MAX_IPSEC_DB_MEMORY && newsize > max_db_s) {
         DEBUG("ipsec_keyeng: ERROR: Limits reached\n");
         return NULL;
     }
-    db = realloc(db, newsize);
-    if(db != NULL){
-        memcpy(((uint8_t*)(db) + db_s), sp, sizeof(ipsec_sp_cache_t));
-        db_s = newsize;
+    if(*db_s == 0) {         /* if it is first entry */
+        DEBUG("ipsec_keyeng: malloc newsize:%i\n", (int)newsize);
+        *db = malloc(newsize);
+    } else {                /* allready exists */
+        DEBUG("ipsec_keyeng: realloc prev size:%i\n", (int)*db_s);
+        DEBUG("ipsec_keyeng: realloc newsize:%i\n", (int)newsize);
+        *db = realloc(*db, newsize);
+    }    
+    if(*db != NULL){
+        memcpy(((uint8_t*)(*db) + *db_s), sp, sizeof(ipsec_sp_cache_t));
+        *db_s = newsize;
     } else {
         DEBUG("ipsec_keyeng: ERROR: HEAP space exhausted\n");
         return NULL;
     }
 
-    return (ipsec_sp_cache_t*)((uint8_t*)(db) + db_s 
+    return (ipsec_sp_cache_t*)((uint8_t*)(*db) + *db_s 
                                     - sizeof(ipsec_sp_cache_t));
 
 }
@@ -202,39 +255,42 @@ ipsec_sa_t* _add_sa_entry(ipsec_sa_t *sa) {
         return NULL;
     }
 
-    return (ipsec_sa_t*)((uint8_t*)(sad) + sad_size - sizeof(ipsec_sa_t));
+    return (ipsec_sa_t*)((uint8_t*)(sad) + (sad_size - sizeof(ipsec_sa_t)));
 }
 
 const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode, 
                                                 ipsec_ts_t* ts) {
 
-    ipsec_sp_t *spd_result = NULL;;
     ipsec_sp_t *spd_rule;
-    ipsec_sp_cache_t *return_handle;                       
+    ipsec_sp_t *spd_result = NULL;
+    ipsec_sp_cache_t *return_handle = NULL;                      
     ipsec_sp_cache_t *sp_entry = NULL;
 
-    for(size_t i=0; i < spd_size; i++) {
+    for(int i=0; i < (int)(spd_size/sizeof(ipsec_sp_cache_t)); i++) {
         spd_rule = (ipsec_sp_t*)( (uint8_t*)spd + (i * sizeof(ipsec_sp_t)) );
-        DEBUG("SPD_Nr:%i, Rule:%i\n", i, (int)spd_rule->rule);  //TODO: remove
         /* TODO: handle and accept ranges and subnets from spd entries*/
-        if(!(ipv6_addr_equal(&spd_rule->dst, &ipv6_addr_unspecified)
-                        || ipv6_addr_equal(&spd_rule->src, &ts->src))){
+        /*char c[200];
+        printf("ts dst:%s\n", ipv6_addr_to_str(c, &ts->dst, 200));
+        printf("rule dst:%s\n", ipv6_addr_to_str(c, &spd_rule->dst, 200));*/
+        if(!( ipv6_addr_equal(&spd_rule->dst, &ipv6_addr_unspecified)
+                        || ipv6_addr_equal(&spd_rule->dst, &ts->dst) )){
             continue;
         }
-        if(!(ipv6_addr_equal(&spd_rule->src, &ipv6_addr_unspecified)
-                        || ipv6_addr_equal(&spd_rule->src, &ts->src))){
+        if(!( ipv6_addr_equal(&spd_rule->src, &ipv6_addr_unspecified)
+                        || ipv6_addr_equal(&spd_rule->src, &ts->src) )){
             continue;
         }
-        if(!(spd_rule->nh == 255 || spd_rule->nh == ts->prot)){
+        if(!( spd_rule->nh == 255 || spd_rule->nh == ts->prot )){
             continue;
         }
-        if(!(spd_rule->dst_port == 0 || spd_rule->dst_port == ts->dst_port)){
+        if(!( spd_rule->dst_port == 0 || spd_rule->dst_port == ts->dst_port )){
             continue;
         }
-        if(!(spd_rule->src_port == 0 || spd_rule->dst_port == ts->src_port)){
+        if(!( spd_rule->src_port == 0 || spd_rule->src_port == ts->src_port )){
             continue;
         }
         spd_result = spd_rule;
+        break;
     }
     if(spd_result == NULL) {
         DEBUG("ipsec_keyeng: ERROR: No SPD match for pkt . Ruleset faulty?\n");
@@ -268,8 +324,16 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
     sp_entry->dst = ts->dst;
     sp_entry->src = ts->src;
     sp_entry->nh = ts->prot;
-    sp_entry->dst_port = ts->dst_port;
-    sp_entry->src_port = ts->src_port;
+    if(ts->dst_port == -1) {
+        sp_entry->dst_port = 0;
+    } else {
+        sp_entry->dst_port = ts->dst_port;
+    }
+    if(ts->src_port == -1) {
+        sp_entry->src_port = 0;
+    } else {
+        sp_entry->src_port = ts->src_port;
+    }
     sp_entry->rule = spd_rule->rule;
     sp_entry->tun_mode = spd_rule->tun_mode;
     sp_entry->encr_cypher = spd_rule->encr_cypher;
@@ -301,8 +365,8 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
 
 const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
                             ipsec_ts_t* ts) {
-    void *db;
-    int db_s;
+    ipsec_sp_cache_t *db;
+    size_t db_s;
     switch(traffic_mode) {
         case GNRC_IPSEC_RCV:
             db_s = spd_i_size;
@@ -320,9 +384,8 @@ const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
     }
 
     const ipsec_sp_cache_t *sp_entry;
-    for(int i=0; i < db_s; i++) {
+    for(int i=0; i < (int)(db_s/sizeof(ipsec_sp_cache_t)); i++) {
         sp_entry = (ipsec_sp_cache_t*)( (uint8_t*)db + (i * sizeof(ipsec_sp_cache_t)) );
-        DEBUG("DB_Nr:%i, Rule:%i\n", i, (int)sp_entry->rule); //TODO: remove
         if( ! (ipv6_addr_equal(&sp_entry->dst, &ipv6_addr_unspecified) 
                             || ipv6_addr_equal(&sp_entry->dst, &ts->dst))){
             continue;
@@ -343,7 +406,7 @@ const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
         return sp_entry;
     }
 
-    /* No cache entries matched traffic slectors. Checking SPD rules */
+    DEBUG("ipsec_keyeng: No cache entries matched traffic slectors. Checking SPD\n");
    
     sp_entry = _generate_sp_from_spd(traffic_mode, ts);
     if(sp_entry == NULL) {
@@ -360,7 +423,7 @@ const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
 
 const ipsec_sa_t *ipsec_get_sa_by_spi(uint32_t spi) {
     ipsec_sa_t* sa_entry;
-    for(int i = 0; i < (int)spd_size; i++) {
+    for(int i = 0; i < (int)(spd_size/sizeof(ipsec_sp_t)); i++) {
         sa_entry = (ipsec_sa_t*)( (uint8_t*)spd + ( i * sizeof(ipsec_sa_t)) );
         if(sa_entry->spi == spi) {
             return sa_entry;

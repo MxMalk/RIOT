@@ -812,13 +812,15 @@ static void _receive(gnrc_pktsnip_t *pkt)
             DPRINT("ipv6_ipsec: RCV PROTECT\n");
             break;
         case GNRC_IPSEC_F_DISCARD:
-            /* DPRINT("ipv6_ipsec: RCV DISCARD\n");
-            gnrc_pktbuf_release(pkt);
+            DPRINT("ipv6_ipsec: RCV DISCARD\n");
+            /* gnrc_pktbuf_release(pkt);
             return;*/
+            break;
         case GNRC_IPSEC_F_ERR:
-            /*DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
-            gnrc_pktbuf_release(pkt);
-            return*/;
+            DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
+            /*gnrc_pktbuf_release(pkt);
+            return;*/
+            break;
     }          
 #endif  
 

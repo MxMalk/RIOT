@@ -109,6 +109,8 @@ typedef struct __attribute__((__packed__)) {
     uint8_t key[IPSEC_MAX_KEY_SIZE];
 } ipsec_cypher_key_t;
 
+/* TODO: replay window management and assertion must added. Probably best
+ * positioned inte keyengine management alongside SN incrementation. */
 /**
  * @brief   Security Assiciation Database (SAD) entry type 
  */
@@ -117,7 +119,6 @@ typedef struct __attribute__((__packed__)) {
     uint32_t spi;           /**< security parameter index */
     uint64_t sn;            /**< sequence number */
     uint8_t sn_of;          /**< overflow permission flag for sequence number. (1) overflow allowed */
-    //TODO: add rudimentary rp_window handling somewhere
     uint64_t rp_l_bound;          /**< replay window lower bound */
     uint64_t rp_u_bound;          /**< replay window upper bound */
     uint64_t rp_window[IPSEC_ANTI_R_WINDOW_SIZE];   /**< replay window content */

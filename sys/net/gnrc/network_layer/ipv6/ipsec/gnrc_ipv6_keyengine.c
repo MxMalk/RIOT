@@ -19,7 +19,7 @@
 
 #define COMBINED_DB_SIZE    (spd_size + spd_i_size + spd_o_size + sad_size)
 
-/* TODO: Implemented databases work by stack (FILO) principle */
+/* TODO: Implemented databases work by FIFO principle (realloc)*/
 
 ipsec_sp_t *spd;
 ipsec_sp_cache_t *spd_i;
@@ -66,10 +66,13 @@ kernel_pid_t ipsec_keyengine_init(void) {
 }
 
 void _ipsec_parse_spd(void) {
-    /* TODO: Comment on how this is not final */
-    /* TODO: WIP solution for hardcoded SPD ruleset. Since we do not check the SPD 
-    * if there is a fitting chache entry, entries to this table aren't required
-    * for manual key and spd_cache injection. At least rename it*/
+    /* TODO: WIP solution for hardcoded SPD ruleset. Should be replace by
+     * dynamic parsing from e.g. an xml or equivalent source.
+     * Since the SPD only gets checked if caches return no result, PROTECTED
+     * entries to this table aren't required since they will be created when
+     * injecting by dbfrm. When start to have real dynamic keying, we
+     * can add those entries here too and IKEv2 will takecare of missing SAs
+     * if needed*/
     ipsec_sp_t *spd_pointer;
     spd_size = 3 * sizeof(ipsec_sp_t);
     spd = malloc(spd_size);
@@ -262,9 +265,6 @@ const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
     for(int i=0; i < (int)(spd_size/sizeof(ipsec_sp_cache_t)); i++) {
         spd_rule = (ipsec_sp_t*)( (uint8_t*)spd + (i * sizeof(ipsec_sp_t)) );
         /* TODO: handle and accept ranges and subnets from spd entries*/
-        /*char c[200];
-        printf("ts dst:%s\n", ipv6_addr_to_str(c, &ts->dst, 200));
-        printf("rule dst:%s\n", ipv6_addr_to_str(c, &spd_rule->dst, 200));*/
         if(!( ipv6_addr_equal(&spd_rule->dst, &ipv6_addr_unspecified)
                         || ipv6_addr_equal(&spd_rule->dst, &ts->dst) )){
             continue;
@@ -524,7 +524,7 @@ static void *_event_loop(void *args) {
 
     DEBUG("ipsec_keyeng: Thread initialized\n");
 
-    /* This is avery simplified and non standart implementation of pf_key 
+    /* This is a very simplified and non standart implementation of pf_key 
      * messaging.
      * For a propper implementation a message pool is essential, thus we 
      * are just following the basic priciples. The reply shemes

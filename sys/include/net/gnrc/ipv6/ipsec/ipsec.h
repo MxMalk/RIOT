@@ -103,10 +103,11 @@ typedef enum FilterRule {
 kernel_pid_t ipsec_init(void);
 
 /**
- * @ brief: TODO: SPD-I and SPD-O and SPD checking without triggering SAD creation
+ * @ brief: SPD-I and SPD-O and SPD checking without triggering SAD creation
  * 
- *          This enables the ipv6 thread to check on SPD rules without beeing
- *          blocked by network traffic like IKEv2 negotiations.
+ *          This enables the ipv6 thread to check on SPD rules before EXT
+ *          handling and beeing able to call this check without blocking the 
+ *          caller by waiting for SA negotiation over e.g. IKEv2.
  *
  * @param[in] mode  Flag for incomming or outgoing traffic
  * @param[in] ts    Traffic selector generated from pkt

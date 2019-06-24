@@ -36,29 +36,36 @@ typedef struct __attribute__((__packed__)) {
 } ipsec_ts_t;
 
 /**
- * @brief   TODO: 
+ * @brief   generates Traffic Selector(TS) from marked or unmarked pkt for
+ *          RX and TX traffic alike.
  * 
- * mode is like this because of circular dependency
+ * mode is hardcoded to avoid circular dependency
  *
  * @param[in] pkt   IPv6 containing packet
  * @param[in] mode  0 for RCV
  * @param[in] mode  1 for SND
+ * @param[in] ts    TS allocated by callee
+ * @param[out] ts   filled TS struct
  *
- * @return  
+ * @return  *ts Pointer to Traffic Selector(TS)
+ * @return  NULL on error
  */
 ipsec_ts_t* ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts,
                                 int t_mode);
 
 
 /**
- * @brief   TODO: 
+ * @brief   Build Traffic Selector(TS) from arguments information
  *
- * @param[in] 
+ * @param[in] ts    TS allocated by callee
+ * @param[out] ts   filled TS struct
  *
- * @return  
+ * @return  *ts Pointer to Traffic Selector(TS)
+ * @return  NULL on error
  */
-ipsec_ts_t* ipsec_ts_from_info(ipv6_addr_t, ipv6_addr_t, uint8_t, 
-                network_uint16_t*, network_uint16_t*, ipsec_ts_t*);
+ipsec_ts_t* ipsec_ts_from_info(ipv6_addr_t dst, ipv6_addr_t src, 
+        uint8_t protnum, network_uint16_t *dst_port, 
+        network_uint16_t *src_port, ipsec_ts_t *ts);
 
 
 #ifdef __cplusplus

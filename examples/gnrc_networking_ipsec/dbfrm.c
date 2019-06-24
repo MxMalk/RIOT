@@ -95,7 +95,7 @@ bool _hex_to_uint8(const char *str, uint8_t *res) {
 /* little endian hex conversion */
 bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
     /* 1 byte == 2 hex chars */
-    assert(strlen(str) == IPSEC_MAX_KEY_SIZE*2);
+    assert( (strlen(str) <= IPSEC_MAX_KEY_SIZE*2) && (strlen(str) % 2 == 0) );
     /* check if string is valid hex */
     for(int i = 0; i < (int)strlen(str); i++) {
         char c = str[i];
@@ -106,8 +106,13 @@ bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
             return false;
         }
     }
-    for(int i = 0; i < (int)IPSEC_MAX_KEY_SIZE; i++) {        
-        char* tmp_str;
+    char* tmp_str;
+    int empyt_bites = (int)IPSEC_MAX_KEY_SIZE*2 - (int)strlen(str);
+    for(int i = 0; i < empyt_bites; i++) {
+        tmp_str = "00";
+        _hex_to_uint8(tmp_str, &key->key[i]);
+    }
+    for(int i = empyt_bites; i < (int)IPSEC_MAX_KEY_SIZE*2; i++) {        
         tmp_str = strncpy(tmp_str, str + i*2, 2);
         _hex_to_uint8(tmp_str, &key->key[i]);
     }
@@ -186,12 +191,11 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             return -1;
         }
     }
-
     if( ! ( _str_to_uint16(port_dst, &sp->dst_port) && 
         _str_to_uint16(port_src, &sp->src_port) ) )  {
-            printf("dbfrm: SP port parsing unsuccessful\n");
-            free(sp);
-            return -1;
+            printf("dbfrm: No valid ports give. Parsing NULL.\n");
+            sp->src_port = 0;
+            sp->dst_port = 0;
     }
     if(strcmp("discard", action)) {
         sp->rule = GNRC_IPSEC_F_DISCARD;
@@ -212,6 +216,8 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             sp->encr_cypher = IPSEC_CYPHER_SHA;
         } else if (strcmp("chacha", enc)) {        
             sp->encr_cypher = IPSEC_CYPHER_CHACHA;
+        } else if (strcmp("mock", enc)) {        
+            sp->encr_cypher = IPSEC_CYPHER_MOCK;
         } else {
             printf("dbfrm: SP parsing unsuccessful\n");
             free(sp);
@@ -219,8 +225,8 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         }
         if(strcmp("none", auth)) {
             sp->auth_cypher = IPSEC_CYPHER_NONE;
-        } else if (strcmp("sha", auth)) {
-            sp->auth_cypher = IPSEC_CYPHER_SHA;
+        } else if (strcmp("mock", auth)) {
+            sp->auth_cypher = IPSEC_CYPHER_MOCK;
         } else {
             printf("dbfrm: SP parsing unsuccessful\n");
             free(sp);
@@ -228,6 +234,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         }
         if(strcmp("transport", mode)) {
             sp->tun_mode = GNRC_IPSEC_M_TRANSPORT;
+            /* ports NULLed by calloc */
         } else if (strcmp("tunnel", mode)) {
             sp->tun_mode = GNRC_IPSEC_M_TUNNEL;
             if((ipv6_addr_from_str(&sp->tunnel_dst, t_src) == NULL) ||
@@ -296,6 +303,8 @@ int ipsec_sad_frm(int argc, char **argv) {
         } else {
             printf("dbfrm: spi:%s was changed successfully.\n", argv[1]);
         }
+    } else {
+        printf("dbfrm: not enough arguments. argc: %i\n", argc);
     }
 
     return 0;

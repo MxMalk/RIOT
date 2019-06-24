@@ -70,16 +70,15 @@ void _ipsec_parse_spd(void) {
     /* TODO: WIP solution for hardcoded SPD ruleset. Since we do not check the SPD 
     * if there is a fitting chache entry, entries to this table aren't required
     * for manual key and spd_cache injection. At least rename it*/
-    
-    /* ipsec_sp_t *spd_pointer;
+    ipsec_sp_t *spd_pointer;
     spd_size = 3 * sizeof(ipsec_sp_t);
     spd = malloc(spd_size);
     spd_pointer = spd;
 
-    char* own_ip = "fe80::c8ff:e6ff:feed:7e8c"; */
+    char* own_ip = "fe80::c8ff:e6ff:feed:7e8c";
 
 /* SPD ENTRY NUMBER 1 */
-    /* ipv6_addr_from_str(&spd_pointer->dst, "::1");
+    ipv6_addr_from_str(&spd_pointer->dst, "::1");
     ipv6_addr_from_str(&spd_pointer->src, "::1");
     spd_pointer->nh = 255;
     spd_pointer->dst_port = 0;    
@@ -97,11 +96,11 @@ void _ipsec_parse_spd(void) {
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;*/
+    spd_pointer->src_port_range = 0;
     
 
  /* SPD ENTRY NUMBER 2 */
-    /* spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
     spd_pointer->dst = ipv6_addr_unspecified;
     ipv6_addr_from_str(&spd_pointer->src, own_ip);
     spd_pointer->nh = 50;
@@ -120,11 +119,11 @@ void _ipsec_parse_spd(void) {
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;*/
+    spd_pointer->src_port_range = 0;
 
  /* SPD ENTRY NUMBER 3 */
     /* entry should use a range, but range detection is not implemented */
-    /* spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
     spd_pointer->dst = ipv6_addr_unspecified;
     spd_pointer->src = ipv6_addr_unspecified;
     spd_pointer->nh = 255;
@@ -143,7 +142,7 @@ void _ipsec_parse_spd(void) {
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;*/
+    spd_pointer->src_port_range = 0;
 
     return;
 }
@@ -234,6 +233,7 @@ ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp,
     if(*db_s == 0) {         /* is first entry */
         DEBUG("ipsec_keyeng: malloc newsize:%i\n", (int)newsize);
         *db = malloc(newsize);
+    } else {
         DEBUG("ipsec_keyeng: realloc newsize:%i\n", (int)newsize);
         *db = realloc(*db, newsize);
     }    
@@ -247,7 +247,7 @@ ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp,
     }
 
     return (ipsec_sp_cache_t*)((uint8_t*)(*db) + *db_s 
-                                    - sizeof(ipsec_sp_cache_t));
+                                    - sizeof(ipsec_sp_cache_t));                                    
 
 }
 
@@ -296,9 +296,11 @@ const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
             return NULL;
         }
     }
-    //TODO: sourround with mem error catch code
-    sp_entry = malloc(sizeof(ipsec_sp_cache_t));
-    /* Call also generates SA for Tx traffic if needed */
+    sp_entry  = malloc(sizeof(ipsec_sp_cache_t));
+    if(sp_entry == NULL){        
+        DEBUG("ipsec_keyeng: malloc failed\n");
+        return NULL;
+    }/* Call also generates SA for Tx traffic if needed */
     _fill_sp_cache_entry(sp_entry, spd_result, ts, traffic_mode, NULL);
     return_handle = _add_sp_cache_entry(sp_entry, traffic_mode);
     free(sp_entry);

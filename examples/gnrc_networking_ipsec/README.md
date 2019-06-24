@@ -4,6 +4,10 @@ In this example we get the minimal ESP implementation in RIOT OS working to test
 
 This example is based on the gnrc_networking udp example, so all networking explanations hold true in this example. Additionally you can use dbfrm cmdline tool to add spd rules and sa entries and thus communicate over encrypted ESP.
 
+# Setup
+
+For now the SPD rules are hardcoded inline at the top of gnrc_ipv6_keyengine.c. Leave out your PROTECTED Traffic Selectors from the SPD since manual SPD Cache entries and their SAs should be entered using the commandline helper dbfrm to simulate dynamic key handling.
+
 # dbfrm --help
 
 Unused optional fields must be NULL'ed

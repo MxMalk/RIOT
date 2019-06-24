@@ -70,13 +70,16 @@ void _ipsec_parse_spd(void) {
     /* TODO: WIP solution for hardcoded SPD ruleset. Since we do not check the SPD 
     * if there is a fitting chache entry, entries to this table aren't required
     * for manual key and spd_cache injection. At least rename it*/
-    ipsec_sp_t *spd_pointer;
-    spd_size = 4 * sizeof(ipsec_sp_t);
+    
+    /* ipsec_sp_t *spd_pointer;
+    spd_size = 3 * sizeof(ipsec_sp_t);
     spd = malloc(spd_size);
     spd_pointer = spd;
 
+    char* own_ip = "fe80::c8ff:e6ff:feed:7e8c"; */
+
 /* SPD ENTRY NUMBER 1 */
-    ipv6_addr_from_str(&spd_pointer->dst, "::1");
+    /* ipv6_addr_from_str(&spd_pointer->dst, "::1");
     ipv6_addr_from_str(&spd_pointer->src, "::1");
     spd_pointer->nh = 255;
     spd_pointer->dst_port = 0;    
@@ -94,13 +97,13 @@ void _ipsec_parse_spd(void) {
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;
+    spd_pointer->src_port_range = 0;*/
     
 
  /* SPD ENTRY NUMBER 2 */
-    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
-    ipv6_addr_from_str(&spd_pointer->dst, "fe80::5c64:73ff:fef9:7c3");
-    ipv6_addr_from_str(&spd_pointer->src, "fe80::c8ff:e6ff:feed:7e8c");
+    /* spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    spd_pointer->dst = ipv6_addr_unspecified;
+    ipv6_addr_from_str(&spd_pointer->src, own_ip);
     spd_pointer->nh = 50;
     spd_pointer->dst_port = 0;    
     spd_pointer->src_port = 0;
@@ -117,40 +120,18 @@ void _ipsec_parse_spd(void) {
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;
+    spd_pointer->src_port_range = 0;*/
 
  /* SPD ENTRY NUMBER 3 */
-    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
-    ipv6_addr_from_str(&spd_pointer->dst, "fe80::5c64:73ff:fef9:7c3");
-    ipv6_addr_from_str(&spd_pointer->src, "fe80::c8ff:e6ff:feed:7e8c");
-    spd_pointer->nh = 17;
-    spd_pointer->dst_port = 666;    
-    spd_pointer->src_port = 666;
-
-    spd_pointer->rule = GNRC_IPSEC_F_PROTECT; 
-    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
-    spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
-
-    spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
-    spd_pointer->comb_cypher = IPSEC_CYPHER_NONE;
-    spd_pointer->tunnel_src = ipv6_addr_unspecified;
-
-    spd_pointer->tunnel_dst = ipv6_addr_unspecified;
-    spd_pointer->dst_range = ipv6_addr_unspecified;
-    spd_pointer->src_range = ipv6_addr_unspecified;
-    spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;
-
- /* SPD ENTRY NUMBER 4 */
     /* entry should use a range, but range detection is not implemented */
-    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    /* spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
     spd_pointer->dst = ipv6_addr_unspecified;
     spd_pointer->src = ipv6_addr_unspecified;
     spd_pointer->nh = 255;
     spd_pointer->dst_port = 0;    
     spd_pointer->src_port = 0;
 
-    spd_pointer->rule = GNRC_IPSEC_F_DISCARD; 
+    spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
     spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
     spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
 
@@ -162,7 +143,7 @@ void _ipsec_parse_spd(void) {
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;
+    spd_pointer->src_port_range = 0;*/
 
     return;
 }
@@ -184,6 +165,41 @@ int _db_init(void) {
     return 1;
 }
 
+ipsec_sa_t* _add_sa_entry(ipsec_sa_t *sa) {
+    if(ipsec_get_sa_by_spi(sa->spi) != NULL) {
+        DEBUG("ipsec_keyeng: ERROR: spi allready in use\n");
+        return NULL;
+    }
+    // TODO: check if id is unique
+    size_t newsize;
+    
+    DEBUG("ipsec_keyeng: adding SA entry\n");
+    newsize = (sad_size + sizeof(ipsec_sa_t));    
+    if(newsize > MAX_IPSEC_DB_MEMORY && newsize > MAX_SADB_SIZE) {
+        DEBUG("ipsec_keyeng: ERROR: Limits reached\n");
+        return NULL;
+    }
+    if(sad_size == 0) {     /* is first entry */
+        DEBUG("ipsec_keyeng: malloc newsize:%i\n", (int)newsize);
+        sad = malloc(newsize);
+    } else {
+        DEBUG("ipsec_keyeng: realloc newsize:%i\n", (int)newsize);
+        sad = realloc(sad, newsize);
+    }    
+    if(sad != NULL){
+        memcpy(((uint8_t*)(sad) + sad_size), sa, sizeof(ipsec_sa_t));
+        sad_size = newsize;
+    } else {
+        DEBUG("ipsec_keyeng: ERROR: HEAP space exhausted\n");
+        // should throw error or terminate execution
+        return NULL;
+    }
+
+    return (ipsec_sa_t*)((uint8_t*)(sad) + sad_size 
+                                    - sizeof(ipsec_sa_t));
+
+}
+
 ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp, 
                             TrafficMode_t traffic_mode) {
     ipsec_sp_cache_t **db;
@@ -191,29 +207,33 @@ ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp,
     size_t max_db_s;
     size_t newsize;
 
+    
     switch(traffic_mode) {
         case GNRC_IPSEC_RCV:
             db = &spd_i;
             db_s = &spd_i_size;
             max_db_s = MAX_SPD_I_CACHE_SIZE;
+            DEBUG("ipsec_keyeng: adding SPD-I entry\n");
             break;
         case GNRC_IPSEC_SND:
             db = &spd_o;
             db_s = &spd_o_size;
             max_db_s = MAX_SPD_O_CACHE_SIZE;
+            DEBUG("ipsec_keyeng: adding SPD-O entry\n");
             break;                
     }
     
     newsize = (*db_s + sizeof(ipsec_sp_cache_t));    
     if(newsize > MAX_IPSEC_DB_MEMORY && newsize > max_db_s) {
         DEBUG("ipsec_keyeng: ERROR: Limits reached\n");
+        /* TODO: maybe we could free all caches if this happens?
+         * _free_caches();
+         */
         return NULL;
     }
-    if(*db_s == 0) {         /* if it is first entry */
+    if(*db_s == 0) {         /* is first entry */
         DEBUG("ipsec_keyeng: malloc newsize:%i\n", (int)newsize);
         *db = malloc(newsize);
-    } else {                /* allready exists */
-        DEBUG("ipsec_keyeng: realloc prev size:%i\n", (int)*db_s);
         DEBUG("ipsec_keyeng: realloc newsize:%i\n", (int)newsize);
         *db = realloc(*db, newsize);
     }    
@@ -222,40 +242,13 @@ ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp,
         *db_s = newsize;
     } else {
         DEBUG("ipsec_keyeng: ERROR: HEAP space exhausted\n");
+        // should throw error or terminate execution
         return NULL;
     }
 
     return (ipsec_sp_cache_t*)((uint8_t*)(*db) + *db_s 
                                     - sizeof(ipsec_sp_cache_t));
 
-}
-
-ipsec_sa_t* _add_sa_entry(ipsec_sa_t *sa) {
-    if(ipsec_get_sa_by_spi(sa->spi) != NULL) {
-        DEBUG("ipsec_keyeng: ERROR: spi allready in use\n");
-        return NULL;
-    }
-    // TODO: check if id is unique
-
-    size_t newsize = sad_size + sizeof(ipsec_sa_t);
-    if(newsize > MAX_IPSEC_DB_MEMORY && newsize > MAX_SADB_SIZE) {
-        DEBUG("ipsec_keyeng: ERROR: Limits reached\n");
-        return NULL;
-    }
-    /* TODO: its bad that everything dies when the limits are reached
-     * assure what real_realloc does and if we can avoid deletion of
-     * spd if we do not redefine spd 
-     * Also change for sp entry function is needed*/
-    sad = realloc(sad, newsize);
-    if(sad != NULL){
-        memcpy(((uint8_t*)(sad) + sad_size), sa, sizeof(ipsec_sa_t));
-        sad_size = newsize;
-    } else {
-        DEBUG("ipsec_keyeng: ERROR: HEAP space exhausted\n");
-        return NULL;
-    }
-
-    return (ipsec_sa_t*)((uint8_t*)(sad) + (sad_size - sizeof(ipsec_sa_t)));
 }
 
 const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode, 
@@ -344,9 +337,13 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
 
     if(spd_rule->rule == GNRC_IPSEC_F_PROTECT) {
         if(mode == GNRC_IPSEC_SND){
-            /**TODO: SA generation if traffic mode is SND.
-             * If multiple sps should share a SA, like for example in a 
-             * PROTECTED multicast group, aquisition should be triggered.
+            /**TODO: SA generation if traffic mode is SND
+             * 
+             * _request_sa_negotiation(ts);
+             * 
+             * If multiple SPs should share a SA, like for example in a 
+             * PROTECTED multicast group, aquisition of existing SA should
+             * be triggered.
              */
         } else {
             if(sa != NULL) {
@@ -421,15 +418,19 @@ const ipsec_sp_cache_t *ipsec_get_sp_entry(TrafficMode_t traffic_mode,
     return sp_entry;
 }
 
-const ipsec_sa_t *ipsec_get_sa_by_spi(uint32_t spi) {
+ipsec_sa_t *_unsecure_ipsec_get_sa_by_spi(uint32_t spi) {
     ipsec_sa_t* sa_entry;
-    for(int i = 0; i < (int)(spd_size/sizeof(ipsec_sp_t)); i++) {
-        sa_entry = (ipsec_sa_t*)( (uint8_t*)spd + ( i * sizeof(ipsec_sa_t)) );
+    for(int i = 0; i < (int)(sad_size/sizeof(ipsec_sa_t)); i++) {
+        sa_entry = (ipsec_sa_t*)( (uint8_t*)sad + ( i * sizeof(ipsec_sa_t)) );
         if(sa_entry->spi == spi) {
             return sa_entry;
         }
     }
     return NULL;
+}
+
+const ipsec_sa_t *ipsec_get_sa_by_spi(uint32_t spi) {
+    return (const ipsec_sa_t*)_unsecure_ipsec_get_sa_by_spi(spi);
 }
 
 int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) { 
@@ -440,9 +441,10 @@ int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) {
             DEBUG("ipsec_keyeng: sa musn't be NULL on PROTECT rules\n");
             return -1;
         }
-
-        // TODO: insert sa
-
+        if(!_add_sa_entry(sa)) {
+            DEBUG("ipsec_keyeng: sa entry could not be created manually\n");
+        return 0;
+    }
     }
     /* Determine traffic mode for SP entry */  
     if(gnrc_netif_get_by_ipv6_addr(&sp->src) == NULL) {
@@ -459,11 +461,20 @@ int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) {
     }
 
     if(!_add_sp_cache_entry(sp, traffic_mode)) {
-        DEBUG("ipsec_keyeng: sp chache entry could not be created\n");
+        DEBUG("ipsec_keyeng: sp chache entry could not be created manually\n");
         return 0;
     }
 
     return 1;
+}
+
+int ipsec_increment_sn(uint32_t spi){
+    ipsec_sa_t *sa = _unsecure_ipsec_get_sa_by_spi(spi);
+    if(sa->sn + 1 < UINT64_MAX || sa->sn_of){
+        sa->sn += 1;
+        return 1;
+    }
+    return -1;    
 }
 
 /* The procesing of the messages is very simplified here message queue and 

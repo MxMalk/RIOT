@@ -125,7 +125,12 @@ FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t* ts);
 gnrc_pktsnip_t *ipsec_handle_esp(gnrc_pktsnip_t *pkt);
 
 
-//TODO: move or remove after DEV
+/**
+ * @brief   DEBUG helper method prints snip info and ipv6 addresses if 
+ *          available
+ *
+ * @param[in] pkt   Snip at arbitrary position
+ */
 void ipsec_show_pkt(gnrc_pktsnip_t *pkt);
 
 

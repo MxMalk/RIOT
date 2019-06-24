@@ -110,7 +110,7 @@ gnrc_pktsnip_t *gnrc_ipv6_ext_process_all(gnrc_pktsnip_t *pkt,
             case PROTNUM_IPV6_EXT_ESP:
 #ifdef MODULE_GNRC_IPV6_IPSEC
                 if ((pkt = _demux(pkt, *protnum)) == NULL) {
-                    DEBUG("ipv6: error in esp handling\n");
+                    DEBUG("ipv6: Rx error in esp handling\n");
                     return NULL;
                 }
                 *protnum = gnrc_nettype_to_protnum(pkt->type);
@@ -273,7 +273,8 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
 #ifdef MODULE_GNRC_IPV6_IPSEC
             pkt = esp_header_process(pkt);
             if( pkt == NULL) {
-                /* TODO: error message */
+                DEBUG("ipv6_ext: Rx esp header processing failed\n");
+                gnrc_pktbuf_release(pkt);
                 return NULL;
             }
             break;

@@ -17,7 +17,7 @@
 
 #include "net/gnrc/ipv6/ipsec/ts.h"
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #define EXTENDED_DEBUG  (0)
 #include "debug.h"
 

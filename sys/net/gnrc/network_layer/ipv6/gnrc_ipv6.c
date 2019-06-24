@@ -798,28 +798,28 @@ static void _receive(gnrc_pktsnip_t *pkt)
 #ifdef MODULE_GNRC_IPV6_IPSEC
     ipsec_ts_t ts;
     if(ipsec_ts_from_pkt(pkt, &ts, GNRC_IPSEC_RCV) == NULL) {
-        DPRINT("ipv6_ipsec: couldn't create traffic selector\n");
+        DPRINT("ipv6_ipsec: Rx: couldn't create traffic selector\n");
         gnrc_pktbuf_release_error(pkt, EPROTO);
         return;          
     }
     switch (ipsec_get_filter_rule(GNRC_IPSEC_RCV, &ts)) {
         /* PROTECTED packets are allready handled in ext processing */
         case GNRC_IPSEC_F_BYPASS:
-            DPRINT("ipv6_ipsec: RCV BYPASS\n");
+            DPRINT("ipv6_ipsec: Rx BYPASS\n");
             break;
         case GNRC_IPSEC_F_PROTECT:
             /* EXT header handling will process/reject ESP header */
-            DPRINT("ipv6_ipsec: RCV PROTECT\n");
+            DPRINT("ipv6_ipsec: Rx PROTECT\n");
             break;
         case GNRC_IPSEC_F_DISCARD:
-            DPRINT("ipv6_ipsec: RCV DISCARD\n");
-            /* gnrc_pktbuf_release(pkt);
-            return;*/
+            DPRINT("ipv6_ipsec: Rx DISCARD\n");
+            gnrc_pktbuf_release(pkt);
+            return;
             break;
         case GNRC_IPSEC_F_ERR:
-            DPRINT("ipv6_ipsec: SPD check returned no result. Discarding packet.\n");
-            /*gnrc_pktbuf_release(pkt);
-            return;*/
+            DPRINT("ipv6_ipsec: Rx: SPD check returned no result. Discarding packet.\n");
+            gnrc_pktbuf_release(pkt);
+            return;
             break;
     }          
 #endif  

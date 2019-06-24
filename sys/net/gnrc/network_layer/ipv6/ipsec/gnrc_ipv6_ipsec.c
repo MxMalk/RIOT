@@ -168,35 +168,31 @@ static void *_event_loop(void *args)
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_SND:
-                DEBUG("ipsec_thread: GNRC_NETAPI_MSG_TYPE_SND\n");
+                DEBUG("ipsec_thread: Tx GNRC_NETAPI_MSG_TYPE_SND\n");
 #ifdef ENABLE_DEBUG
                 ipsec_show_pkt(msg.content.ptr);
-#endif
-
-                /*TODO: Protect & tunnel*/
-                /*if tunnel
-                if (gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6,
-                                    GNRC_NETREG_DEMUX_CTX_ALL, pkt) == 0 ) {
-                    DEBUG("ipv6: unable send packet\n");
-                    gnrc_pktbuf_release(pkt);
-                } */
+#endif          
                 pkt = msg.content.ptr;
                 ipsec_ts_t ts;
                 if(ipsec_ts_from_pkt(pkt, &ts, (int)GNRC_IPSEC_SND) == NULL){
-                    DEBUG("ipsec_thread: couldn't create traffic selector\n");
+                    DEBUG("ipsec_thread: Tx couldn't create traffic selector\n");
                     break;           
                 }
                 uint32_t spi = ipsec_get_sp_entry(GNRC_IPSEC_SND, &ts)->sa;
-                esp_header_build(pkt, ipsec_get_sa_by_spi(spi));
+                if(!esp_header_build(pkt, ipsec_get_sa_by_spi(spi), &ts)){
+                    gnrc_pktbuf_release(pkt);
+                    DEBUG("ipsec_thread: Tx couldn't create esp header\n");
+                    return NULL;
+                }
                 _send_to_interface(pkt);
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 /* This shouldn't happen. Rx is handled by function calls 
                  * from ipv6 thread */ 
-                DEBUG("ipsec_thread: unexpected code path\n");
+                DEBUG("ipsec_thread: Tx unexpected code path\n");
                 break;              
             default:
-                DEBUG("ipsec_thread: netapi msg type not supported.\n");
+                DEBUG("ipsec_thread: Tx netapi msg type not supported.\n");
                 break;
         }
     }

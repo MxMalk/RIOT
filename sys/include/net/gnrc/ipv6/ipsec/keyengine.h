@@ -99,7 +99,8 @@ typedef enum ipsec_dbtype {
 typedef enum {
     IPSEC_CYPHER_NONE   = 0,
     IPSEC_CYPHER_SHA	= 1,
-    IPSEC_CYPHER_CHACHA	= 2
+    IPSEC_CYPHER_CHACHA	= 2,
+    IPSEC_CYPHER_MOCK	= 3     // mockup cypher
 }ESP_cypher_t;
 
 
@@ -232,6 +233,14 @@ const ipsec_sa_t *ipsec_get_sa_by_spi(uint32_t spi);
 * @return -1 on failure
 */
 int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa);
+
+/**
+* @brief   increments sequence number of SA
+*
+* @return  1 if incrementation is accepted
+* @return -1 if pkt should not be send
+*/
+int ipsec_increment_sn(uint32_t spi);
 
 #ifdef __cplusplus
 }

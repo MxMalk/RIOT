@@ -25,7 +25,6 @@
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
 
 static void _print_help(void) {
-    /*TODO*/
     printf("## dbfrm help:\n"
         "Unused optional fields must be NULL'ed\n"
         "{} fields can be NULL'ed when no SA is needed\n"
@@ -249,9 +248,10 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     }
 
     /* instead of producing a very poor verison of the pf_key communication we
-     * take the shortcut and insert the sp and sa directly into the databases.
-     * Following code is kept for a small reference on how a pf_key call could
-     * be created and handled */
+     * are taking a shortcut and insert the sp and sa directly into the
+     * databases. Following code is kept for a pseudo reference on how a pf_key
+     * call could be created and handled */
+
     /*     
     msg_t *msg, *rpl;
     sadb_msg_t *sadb_msg;
@@ -267,13 +267,15 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         free(rpl);
     } */
 
+
     /* sa may be NULL */
     if( ! ipsec_inject_db_entries(sp, sa)) {
         free(sp);
         free(sa);
         return -1;
     }
-
+    free(sp);
+    free(sa);
     return 1;
 }
 

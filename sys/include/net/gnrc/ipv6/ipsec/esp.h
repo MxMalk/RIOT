@@ -73,21 +73,24 @@ typedef struct __attribute__((packed)) {
 } ipv6_esp_trl_t;
 
 /**
-* @brief   build esp header
+* @brief   Build ESP header for sending
 *
-* @param[in] pkt head after ipv6 header build
-* TODO
+* @param[in] pkt   head after IPv6 header build
+* @param[in] sa_entry   Database pointer to according Security
+*            Association (SA) entry
+* @param[in] ts   Pointer to Traffic Selector (TS) of pkt
 *
 * @return  pktsnip at IPv6 with ESP
 */
 gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt, 
-                        const ipsec_sa_t *sa_entry);
+                            const ipsec_sa_t *sa_entry,
+                            ipsec_ts_t *ts);
 
 /**
 * @brief   Marks, Decrypts and returns pkt at next header. If the ipsec rules
              dictate tunnel mode, packet is consumed and processed.
 *
-* @param[in] pktsnip of ESP EXT header
+* @param[in] pktsnip at ESP EXT header
 *
 * @return  processed ESP pkt at next header poisition
 * @return  NULL on tunnel mode

@@ -37,13 +37,11 @@ PROTECTS and encrypts UDP traffic from Client#1 to Client#2
 #!#! WIP !#!#
 
 Client #1:
-ifconfig 8 set addr_long *****
+ifconfig 8 add 2000::1/64
 
-dbfrm protect '123' '571' 'fe80::5c64:73ff:fef9:7c3' 'fe80::c8ff:e6ff:feed:7e8c' 17  NULL NULL transport mock 'bd9a51e0f1e4c30669acf99c052bced782a8d455e89e66da755668e91fac9a378b23ca9c6a34015b3fac37d000faf888ad1b730c1d8e7f2000064fe0ec2f5c96' mock 'b7396d693045f060633ac1653443e2493d26062fca90ce6fa858b8c212925f1cd20da5abd6d76e09b2b10bbc236161214a6e60da55c394183ba39758f192249c' NULL NULL
-
-Test for shorter keys: dbfrm protect '123' '571' 'fe80::5c64:73ff:fef9:7c3' 'fe80::c8ff:e6ff:feed:7e8c' 17  NULL NULL transport mock 'beef' mock 'calf' NULL NULL
+dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL transport mock 'bd9a51e0f1e4c306' mock 'b7396d693045f060' NULL NULL
 
 Client #2:
-ifconfig 8 set addr_long *****
+ifconfig 8 add 2000::2/64
 
-dbfrm protect '123' '571' 'fe80::c8ff:e6ff:feed:7e8c' 'fe80::5c64:73ff:fef9:7c3' 17  NULL NULL transport mock  'bd9a51e0f1e4c30669acf99c052bced782a8d455e89e66da755668e91fac9a378b23ca9c6a34015b3fac37d000faf888ad1b730c1d8e7f2000064fe0ec2f5c96' mock 'b7396d693045f060633ac1653443e2493d26062fca90ce6fa858b8c212925f1cd20da5abd6d76e09b2b10bbc236161214a6e60da55c394183ba39758f192249c' NULL NULL
+dbfrm protect '42' '13371337'  '2000::2' '2000::1' 17  NULL NULL transport mock 'bd9a51e0f1e4c306' mock 'b7396d693045f060' NULL NULL

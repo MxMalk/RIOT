@@ -62,9 +62,15 @@ extern "C" {
 #endif
 
 /**
- * @brief   size of max ipsec_cypher_key_t in byte
+ * @brief   size of fixed cypher key memory in byte
  */
-#define IPSEC_MAX_KEY_SIZE      (64U)
+#define IPSEC_CHACHA_KEY_SIZE      (32U)
+
+/**
+ * @brief   size of fixed cypher nounce memory in byte
+ */
+#define IPSEC_CHACHA_NOUNCE_SIZE      (12U)
+
 
 /**
  * @brief   sliding window size for anti replay
@@ -94,23 +100,40 @@ typedef enum ipsec_dbtype {
 }ipsec_dbtype_t;
 
 /**
- * @brief   Supported ESP cyphers
+ * @brief   Supported ESP ciphers
  */
 typedef enum {
-    IPSEC_CYPHER_NONE   = 0,
-    IPSEC_CYPHER_SHA	= 1,
-    IPSEC_CYPHER_CHACHA	= 2,
-    IPSEC_CYPHER_MOCK	= 3     // mockup cypher
-}ESP_cypher_t;
+    IPSEC_CYPHER_CHACHA_POLY	= 1,    /* chacha20_poly1305 AEAD cipher RFC7634 */
+    IPSEC_CYPHER_MOCK	        = 2     /* mockup debug cipher */
+}ESP_cipher_t;
 
+/**
+ * @brief   Possible ESP cipher modes
+ */
+typedef enum {
+    IPSEC_CYPHER_M_AUTH_ONLY    = 0,    
+    IPSEC_CYPHER_M_ENC_N_AUTH   = 1,  
+    IPSEC_CYPHER_M_COMB	        = 2
+}ESP_crypto_mode_t;
 
+/** 
+ * @brief   ESP cryptography details.
+ * 
+ * @note For support of other ciphers or modes, fields could be added, modified
+ * or an overall more dynamic structure could be used.
+ */
 typedef struct __attribute__((__packed__)) {
-    /* key[0] == least significant byte */
-    uint8_t key[IPSEC_MAX_KEY_SIZE];
-} ipsec_cypher_key_t;
+    ESP_cipher_t cipher;
+    // TODO: how to handle endianness in this case?
+    uint8_t key[IPSEC_CHACHA_KEY_SIZE];
+    uint8_t iv[IPSEC_CHACHA_NOUNCE_SIZE]; /* TODO: really?(endianness) last 8 byte are IV nounce,
+                        first 8 bit are the negotiated salt */
+} ipsec_crypto_info_t;
 
 /* TODO: replay window management and assertion must added. Probably best
- * positioned inte keyengine management alongside SN incrementation. */
+ * positioned inte keyengine management alongside SN incrementation. 
+ * -> Replay window management is the receiver side of SN incrementation*/
+
 /**
  * @brief   Security Assiciation Database (SAD) entry type 
  */
@@ -118,23 +141,23 @@ typedef struct __attribute__((__packed__)) {
     uint16_t id;            /**< security parameter identifier */
     uint32_t spi;           /**< security parameter index */
     uint64_t sn;            /**< sequence number */
-    uint8_t sn_of;          /**< overflow permission flag for sequence number. (1) overflow allowed */
-    uint64_t rp_l_bound;          /**< replay window lower bound */
-    uint64_t rp_u_bound;          /**< replay window upper bound */
+    uint8_t sn_of;          /**< overflow permission flag for sequence number.
+                            (1) overflow allowed */
+    uint64_t rp_l_bound;    /**< replay window lower bound */
+    uint64_t rp_u_bound;    /**< replay window upper bound */
     uint64_t rp_window[IPSEC_ANTI_R_WINDOW_SIZE];   /**< replay window content */
-    ipsec_cypher_key_t encr_key;      /**< encryption cypher type */
-    ipsec_cypher_key_t auth_key;      /**< authentication cypher type */
-    ipsec_cypher_key_t comb_key;      /**< combined auth and enc cypher type */
-    //TODO: +iv ??
+    ESP_crypto_mode_t c_mode;                       /**< cryptographic mode */
+    ipsec_crypto_info_t crypt_info;                  /**< combined cypher key, mode, etc. */
     uint32_t re_lt;         /**< renegotiation after milliseconds */
     uint32_t re_bc;         /**< renegotiation after bytecount */
     uint32_t max_lt;        /**< maximum lifetime in milliseconds */
     uint32_t max_bc;        /**< maximum lifetime in bytecount */
-    uint8_t rn;             /**< lifetime flag to (0)RENEGOTIATE or (1)TERMINATE on end of lifetime */
+    uint8_t rn;             /**< lifetime flag to (0)RENEGOTIATE or (1)TERMINATE 
+                            on end of lifetime */
     uint8_t mode;           /**< (0)TRANSPORT mode, (1)TUNNEL mode */
     uint32_t pmtu;          /**< observed path MTU */
-    ipv6_addr_t tunnel_src; /**< tunnel destination ipv6 address */
-    ipv6_addr_t tunnel_dst; /**< tunnel source ipv6 address */
+    ipv6_addr_t tunnel_dst; /**< tunnel destination ipv6 address */
+    ipv6_addr_t tunnel_src; /**< tunnel source ipv6 address */
 } ipsec_sa_t;
 
 /**
@@ -147,49 +170,45 @@ typedef struct __attribute__((__packed__)) {
  * We only support combined mode cypher, so only one field is needed. * 
  */
 typedef struct __attribute__((__packed__)) ipsec_sp_cache {
-    ipv6_addr_t dst;
-    ipv6_addr_t src;
-    uint8_t nh;
-    uint16_t dst_port;    
-    uint16_t src_port;
-    FilterRule_t rule; 
-    TunnelMode_t tun_mode;
-    ESP_cypher_t encr_cypher;
-    ESP_cypher_t auth_cypher;
-    ESP_cypher_t comb_cypher;
-    ipv6_addr_t tunnel_src;
-    ipv6_addr_t tunnel_dst;
-    uint32_t sa;                // 0 if associated with no SA 
+    ipv6_addr_t dst;            /**< destination ipv6 address */
+    ipv6_addr_t src;            /**< source ipv6 address */
+    uint8_t nh;                 /**< payloads IP protocoll number */
+    uint16_t dst_port;          /**< Traffic Selector(TS) destination port 
+                                number for UDP/TCP */  
+    uint16_t src_port;          /**< Traffic Selector(TS) source port number 
+                                for UDP/TCP */
+    FilterRule_t rule;          /**< firewall filter rule */
+    TunnelMode_t tun_mode;      /**< (0)TRANSPORT mode, (1)TUNNEL mode */
+    ESP_cypher_t comb_cypher;   /**< combined cypher mode */
+    ipv6_addr_t tunnel_dst;     /**< tunnel destination ipv6 address */
+    ipv6_addr_t tunnel_src;     /**< tunnel source ipv6 address */
+    uint32_t sa;                /**< 0 if not associated with a SAD entry */
 } ipsec_sp_cache_t;
 
 /**
  * @brief   Security Policy Database CACHE (SPD cache) entry type 
  *  
  */
-typedef struct __attribute__((__packed__)) ipsec_sp {
-    ipv6_addr_t dst;
-    ipv6_addr_t src;
+typedef struct __attribute__((__packed__)) ipsec_sp {    
+    ipv6_addr_t dst;            /**< destination ipv6 address */
+    ipv6_addr_t src;            /**< source ipv6 address */
+    uint8_t nh;                 /**< payloads IP protocoll number */
+    uint16_t dst_port;          /**< Traffic Selector(TS) destination port 
+                                number for UDP/TCP */  
+    uint16_t src_port;          /**< Traffic Selector(TS) source port number 
+                                for UDP/TCP */
+    FilterRule_t rule;          /**< firewall filter rule */
+    TunnelMode_t tun_mode;      /**< (0)TRANSPORT mode, (1)TUNNEL mode */
+    ESP_cypher_t comb_cypher;   /**< combined cypher mode */
+    ipv6_addr_t tunnel_dst;     /**< tunnel destination ipv6 address */
+    ipv6_addr_t tunnel_src;     /**< tunnel source ipv6 address */
 
-    uint8_t nh;
-    uint16_t dst_port;    
-    uint16_t src_port;
-
-    FilterRule_t rule; 
-    TunnelMode_t tun_mode;
-    ESP_cypher_t encr_cypher;
-
-    ESP_cypher_t auth_cypher;
-    ESP_cypher_t comb_cypher;
-    ipv6_addr_t tunnel_src;
-
-    ipv6_addr_t tunnel_dst;
-    /* ranges fields. If these are not NULL, distance between the coresponding
-     * fields should be treated as a range value */
-    ipv6_addr_t dst_range;
-    ipv6_addr_t src_range;
-
-    uint16_t dst_port_range;    
-    uint16_t src_port_range;
+    /* ranges fields: If these are set, use range between both coresponding
+     * struct values */
+    ipv6_addr_t dst_range;      /**< dst range field. ignore if null */
+    ipv6_addr_t src_range;      /**< src range field. ignore if null */
+    uint16_t dst_port_range;    /**< dst_port range field. ignore if null */
+    uint16_t src_port_range;    /**< src_port range field. ignore if null */
 } ipsec_sp_t;
 
 /**

@@ -148,6 +148,9 @@ FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t *ts){
 
 static void *_event_loop(void *args)
 {
+    ipsec_ts_t ts;
+    const ipsec_sp_cache_t *sp;
+    const ipsec_sa_t *sa;
     gnrc_pktsnip_t *pkt;
     msg_t msg, msg_q[GNRC_IPSEC_MSG_QUEUE_SIZE];
     gnrc_netreg_entry_t me_reg = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
@@ -163,6 +166,8 @@ static void *_event_loop(void *args)
     /* start event loop */
     while (1) {
         pkt = NULL;
+        sp = NULL;
+        sa = NULL;
         DEBUG("ipsec_thread: waiting for incoming message.\n");
         msg_receive(&msg);
 
@@ -173,16 +178,30 @@ static void *_event_loop(void *args)
                 ipsec_show_pkt(msg.content.ptr);
 #endif          
                 pkt = msg.content.ptr;
-                ipsec_ts_t ts;
                 if(ipsec_ts_from_pkt(pkt, &ts, (int)GNRC_IPSEC_SND) == NULL){
                     DEBUG("ipsec_thread: Tx couldn't create traffic selector\n");
                     break;           
                 }
-                uint32_t spi = ipsec_get_sp_entry(GNRC_IPSEC_SND, &ts)->sa;
-                if(!esp_header_build(pkt, ipsec_get_sa_by_spi(spi), &ts)){
+                /* requesting the SP triggers a cascade of rule generation 
+                 * and negotiation if needed */
+                sp = ipsec_get_sp_entry(GNRC_IPSEC_SND, &ts);
+                if(sp == NULL) {
+                    DEBUG("ipsec_thread: Tx couldn't get Security Policy(SP)\n");
                     gnrc_pktbuf_release(pkt);
-                    DEBUG("ipsec_thread: Tx couldn't create esp header\n");
                     return NULL;
+                }
+                sa = ipsec_get_sa_by_spi(sp->sa);
+                if(sa == NULL) {
+                    DEBUG("ipsec_thread: Tx couldn't get Security Assiciation"
+                            "(SA) with SPI: %i\n", sp->sa);
+                    gnrc_pktbuf_release(pkt);
+                    return NULL;
+                }
+                if(!esp_header_build(pkt, sa, sp, &ts)){
+                    DEBUG("ipsec_thread: Tx couldn't create esp header\n");
+                    gnrc_pktbuf_release(pkt);
+                    return NULL;
+
                 }
                 _send_to_interface(pkt);
                 break;

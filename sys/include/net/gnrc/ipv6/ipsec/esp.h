@@ -10,7 +10,31 @@
   * @ingroup     net_gnrc_ipv6_ipsec
   * @brief       IPsec ESP header definitions and routines
   * 
-  * @{
+  * @details Following is the general strucutre of the ESP header. 
+  * Programatically we split it into an header and a trailer type.
+  * 
+  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.unparsed}
+  *  0                   1                   2                   3
+  *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ ----
+  * |                Security Parameters Index (SPI)                | ^Int.
+  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ |Cov-
+  * |                       Sequence Number                         | |ered
+  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | ----
+  * |                  Payload Data* (variable)                     | | ^
+  * ~                                                               ~ | |
+  * |                                                               | |Conf.
+  * +               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ |Cov-
+  * |               |    Padding (0-255 bytes)                      | |ered*
+  * +-+-+-+-+-+-+-+-+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | |
+  * |                               |  Pad Length   |   Next Header | v v
+  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ ------
+  * |            Integrity Check Value-ICV (variable)               |
+  * ~                                                               ~
+  * |                                                               |
+  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  *
   *
   * @file
   * @brief		IPv6 ESP header structs and methods
@@ -35,37 +59,15 @@ extern "C" {
 
 /**
 * @brief Data type to represent an ESP packet header.
-*
-* @details The structure of the header is as follows:
-*
-* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.unparsed}
-*  0                   1                   2                   3
-*  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-* +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ ----
-* |                Security Parameters Index (SPI)                | ^Int.
-* +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ |Cov-
-* |                       Sequence Number                         | |ered
-* +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | ----
-* |                  Payload Data* (variable)                     | | ^
-* ~                                                               ~ | |
-* |                                                               | |Conf.
-* +               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ |Cov-
-* |               |    Padding (0-255 bytes)                      | |ered*
-* +-+-+-+-+-+-+-+-+               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | |
-* |                               |  Pad Length   |   Next Header | v v
-* +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ ------
-* |            Integrity Check Value-ICV (variable)               |
-* ~                                                               ~
-* |                                                               |
-* +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*
 */
 typedef struct __attribute__((packed)) {
 	network_uint32_t spi;
 	network_uint32_t sn;
 } ipv6_esp_hdr_t;
 
+/**
+* @brief Data type to represent an ESP packet trailer.
+*/
 typedef struct __attribute__((packed)) {
 	uint8_t pl;
 	uint8_t nh;
@@ -95,7 +97,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 * @return  processed ESP pkt at next header poisition
 * @return  NULL on tunnel mode
 */
-gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt);
+gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *pkt, uint8_t protnum);
 
 #ifdef __cplusplus
 }

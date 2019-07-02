@@ -206,7 +206,8 @@ static inline bool _has_valid_size(gnrc_pktsnip_t *pkt, uint8_t protnum)
         //TODO: Special support for DietESP needed
             return true;
         case PROTNUM_IPV6_EXT_MOB:
-            return ((ext->len * IPV6_EXT_LEN_UNIT) + IPV6_EXT_LEN_UNIT) <= pkt->size;
+            return ((ext->len * IPV6_EXT_LEN_UNIT) + IPV6_EXT_LEN_UNIT) 
+                                                            <= pkt->size;
 
         default:
             return true;
@@ -271,7 +272,7 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
 
         case PROTNUM_IPV6_EXT_ESP:
 #ifdef MODULE_GNRC_IPV6_IPSEC
-            pkt = esp_header_process(pkt);
+            pkt = esp_header_process(pkt, protnum);
             if( pkt == NULL) {
                 DEBUG("ipv6_ext: Rx esp header processing failed\n");
                 gnrc_pktbuf_release(pkt);

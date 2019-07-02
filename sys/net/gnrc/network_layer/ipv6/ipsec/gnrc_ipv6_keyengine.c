@@ -440,13 +440,13 @@ int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) {
     
     if(sp->rule == GNRC_IPSEC_F_PROTECT) {
         if(sa == NULL) {
-            DEBUG("ipsec_keyeng: sa musn't be NULL on PROTECT rules\n");
+            DEBUG("ipsec_keyeng: injected sa musn't be NULL on PROTECT rules\n");
             return -1;
         }
         if(!_add_sa_entry(sa)) {
-            DEBUG("ipsec_keyeng: sa entry could not be created manually\n");
+            DEBUG("ipsec_keyeng: injected sa entry could not be created\n");
         return 0;
-    }
+        }
     }
     /* Determine traffic mode for SP entry */  
     if(gnrc_netif_get_by_ipv6_addr(&sp->src) == NULL) {

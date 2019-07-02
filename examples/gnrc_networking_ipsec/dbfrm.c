@@ -18,6 +18,7 @@
  * @}
  */
 
+
 #include <stdio.h>
 #include <assert.h>
 #include "msg.h"
@@ -50,9 +51,9 @@ static void _print_help(void) {
 
 bool _str_to_uint32(const char *str, uint32_t *res) {
     char *end;
-    int errno = 0;
-    long val = strtol(str, &end, 10);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT32_MAX) {
+    
+    unsigned long val = strtoul(str, &end, 10);
+    if (end == str || *end != '\0') {
         return false;
     }
     *res = (uint32_t)val;
@@ -61,9 +62,8 @@ bool _str_to_uint32(const char *str, uint32_t *res) {
 
 bool _str_to_uint16(const char *str, uint16_t *res) {
     char *end;
-    int errno = 0;
     long val = strtol(str, &end, 10);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT16_MAX) {
+    if (end == str || *end != '\0' || val < 0 || val >= (long)UINT16_MAX) {
         return false;
     }
     *res = (uint16_t)val;
@@ -72,9 +72,8 @@ bool _str_to_uint16(const char *str, uint16_t *res) {
 
 bool _str_to_uint8(const char *str, uint8_t *res) {
     char *end;
-    int errno = 0;
     long val = strtol(str, &end, 10);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
+    if (end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
         return false;
     }
     *res = (uint8_t)val;
@@ -83,9 +82,8 @@ bool _str_to_uint8(const char *str, uint8_t *res) {
 
 bool _hex_to_uint8(const char *str, uint8_t *res) {
     char *end;
-    int errno = 0;
     long val = strtol(str, &end, 16);
-    if (errno || end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
+    if (end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
         return false;
     }
     *res = (uint8_t)val;
@@ -131,7 +129,8 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     ipsec_sa_t *sa = NULL;
     ipsec_sp_cache_t *sp = NULL; 
 
-    if(strcmp(action, "protect")) {
+    if(strcmp(action, "protect") == 0) {
+
         /* Create SA */
         sa = calloc(1, sizeof(ipsec_sa_t));
         /* everything not addressed was set zero by calloc */
@@ -149,9 +148,9 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         sa->max_lt =    87000000;
         sa->max_bc =    16000000;
         sa->pmtu =      1500; /* Ethernet PMTU */
-        if(strcmp("transport", mode)) {
+        if(strcmp("transport", mode) == 0) {
             sa->mode = GNRC_IPSEC_M_TRANSPORT;
-        } else if (strcmp("tunnel", mode)) {
+        } else if (strcmp("tunnel", mode) == 0) {
             sa->mode = GNRC_IPSEC_M_TUNNEL;
         } else {
             printf("dbfrm: SA mode parsing unsuccessful\n");
@@ -182,7 +181,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             free(sp);
             return -1;
     }
-    if( strcmp(proto, "any")) {
+    if(strcmp(proto, "any") == 0) {
         sp->nh = 255;
     } else {
         if( !_str_to_uint8(proto, &sp->nh)) {
@@ -193,15 +192,15 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     }
     if( ! ( _str_to_uint16(port_dst, &sp->dst_port) && 
         _str_to_uint16(port_src, &sp->src_port) ) )  {
-            printf("dbfrm: No valid ports give. Parsing NULL.\n");
+            printf("dbfrm: No valid ports given. Parsing NULL.\n");
             sp->src_port = 0;
             sp->dst_port = 0;
     }
-    if(strcmp("discard", action)) {
+    if(strcmp("discard", action) == 0) {
         sp->rule = GNRC_IPSEC_F_DISCARD;
-    } else if (strcmp("bypass", action)) {
+    } else if (strcmp("bypass", action) == 0) {
         sp->rule = GNRC_IPSEC_F_BYPASS;
-    } else if (strcmp("protect", action)) {        
+    } else if (strcmp("protect", action) == 0) {        
         sp->rule = GNRC_IPSEC_F_PROTECT;
     } else {
         printf("dbfrm: SP rule parsing unsuccessful\n");
@@ -210,32 +209,32 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     }
     /* only for protected traffic */
     if( sp->rule == GNRC_IPSEC_F_PROTECT ) {
-        if(strcmp("none", enc)) {
+        if(strcmp("none", enc) == 0) {
             sp->encr_cypher = IPSEC_CYPHER_NONE;
-        } else if (strcmp("sha", enc)) {
+        } else if (strcmp("sha", enc) == 0) {
             sp->encr_cypher = IPSEC_CYPHER_SHA;
-        } else if (strcmp("chacha", enc)) {        
+        } else if (strcmp("chacha", enc) == 0) {        
             sp->encr_cypher = IPSEC_CYPHER_CHACHA;
-        } else if (strcmp("mock", enc)) {        
+        } else if (strcmp("mock", enc) == 0) {        
             sp->encr_cypher = IPSEC_CYPHER_MOCK;
         } else {
             printf("dbfrm: SP parsing unsuccessful\n");
             free(sp);
             return -1;
         }
-        if(strcmp("none", auth)) {
+        if(strcmp("none", auth) == 0) {
             sp->auth_cypher = IPSEC_CYPHER_NONE;
-        } else if (strcmp("mock", auth)) {
+        } else if (strcmp("mock", auth) == 0) {
             sp->auth_cypher = IPSEC_CYPHER_MOCK;
         } else {
             printf("dbfrm: SP parsing unsuccessful\n");
             free(sp);
             return -1;
         }
-        if(strcmp("transport", mode)) {
+        if(strcmp("transport", mode) == 0) {
             sp->tun_mode = GNRC_IPSEC_M_TRANSPORT;
             /* ports NULLed by calloc */
-        } else if (strcmp("tunnel", mode)) {
+        } else if (strcmp("tunnel", mode) == 0) {
             sp->tun_mode = GNRC_IPSEC_M_TUNNEL;
             if((ipv6_addr_from_str(&sp->tunnel_dst, t_src) == NULL) ||
                 (ipv6_addr_from_str(&sp->tunnel_src, t_dst) == NULL )) {
@@ -293,18 +292,18 @@ int ipsec_sad_frm(int argc, char **argv) {
         return 0;
     }
 
-    if(argc==15) {
+    if(argc==16) {
         /* Some sanity checks on the input are needed*/
         int result = _install_sa_hard(argv[1],argv[2],argv[3],argv[4],argv[5],
             argv[6],argv[7],argv[8],argv[9], argv[10], argv[11], argv[12], 
             argv[13], argv[14], argv[15]);
-        if(result!=0) {
-            printf("dbfrm: No changes could be made. ERR_NR:%i\n", result);
+        if(result < 1) {
+            printf("dbfrm: No changes could be made. ERR_NR: %i\n", result);
         } else {
-            printf("dbfrm: spi:%s was changed successfully.\n", argv[1]);
+            printf("dbfrm: spi: %s was added/changed successfully.\n", argv[3]);
         }
     } else {
-        printf("dbfrm: not enough arguments. argc: %i\n", argc);
+        printf("dbfrm: wrong number of aguments. argc = %i\n", argc);
     }
 
     return 0;

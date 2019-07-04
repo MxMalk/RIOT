@@ -30,7 +30,7 @@ static uint8_t PrevHeaders[6] = {
     135, //PROTNUM_IPV6_EXT_MOB
 };
 
-bool _is_prev_hdr(uint8_t prot) {
+static bool _is_prev_hdr(uint8_t prot) {
     for(int i=0; i < (int)sizeof(PrevHeaders); i++) {
         if(prot == PrevHeaders[i]) {
             return true;
@@ -39,8 +39,9 @@ bool _is_prev_hdr(uint8_t prot) {
     return false;
 }
 
-/* finds last snip in pkt and fills argument pointers if it is a payload */
-gnrc_pktsnip_t *_find_last_snip(gnrc_pktsnip_t *snip, uint8_t *ph_protnum, 
+/* finds last snip with valid type in pkt and fills argument pointers if it is
+ * a payload */
+static gnrc_pktsnip_t *_find_last_snip(gnrc_pktsnip_t *snip, uint8_t *ph_protnum, 
                     void **payload_h) {
     uint8_t tmp_protnum;
     bool iterate = true;
@@ -72,7 +73,7 @@ gnrc_pktsnip_t *_find_last_snip(gnrc_pktsnip_t *snip, uint8_t *ph_protnum,
 
 /* gets handed the last snip with type != 255 and iterates over data of
  * last snip in search of payload */
-int _find_payload_in_umarked(gnrc_pktsnip_t *snip, uint8_t *ph_protnum, 
+void find_payload_in_umarked(gnrc_pktsnip_t *snip, uint8_t *p_protnum, 
                                 void **payload_h) {
     void* data_pointer;
     uint8_t tmp_protnum;
@@ -91,10 +92,9 @@ int _find_payload_in_umarked(gnrc_pktsnip_t *snip, uint8_t *ph_protnum,
         } else {
             /* in this case we should have our payload field*/
             *payload_h = data_pointer;
-            *ph_protnum = tmp_protnum;
+            *p_protnum = tmp_protnum;
         }
-    }
-    return 1;    
+    }   
 }
 
 ipsec_ts_t *ipsec_ts_from_info(ipv6_addr_t dst,
@@ -138,11 +138,11 @@ ipsec_ts_t* ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts, int t_mode)
     if( t_mode == (int)GNRC_IPSEC_SND) {
          last_snip = _find_last_snip(snip, &ph_protnum, &payload_h);
          if(payload_h == NULL) {
-             _find_payload_in_umarked(last_snip, &ph_protnum, &payload_h);
+             find_payload_in_umarked(last_snip, &ph_protnum, &payload_h);
          }
     } else {
         /* ipv6 is "last" snip, since called from Rx (reversed order) */
-        _find_payload_in_umarked(snip, &ph_protnum, &payload_h);
+        find_payload_in_umarked(snip, &ph_protnum, &payload_h);
     }
 
     assert(payload_h != NULL);

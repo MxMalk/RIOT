@@ -274,7 +274,7 @@ static gnrc_pktsnip_t *_demux(gnrc_pktsnip_t *pkt, unsigned protnum)
 #ifdef MODULE_GNRC_IPV6_IPSEC
             pkt = esp_header_process(pkt, protnum);
             if( pkt == NULL) {
-                DEBUG("ipv6_ext: Rx esp header processing failed\n");
+                DEBUG("ipv6_ext: Rx esp header processing failed or pkt was consumed by ext handling\n");
                 gnrc_pktbuf_release(pkt);
                 return NULL;
             }

@@ -24,7 +24,7 @@
 #include "msg.h"
 
 #define MAIN_QUEUE_SIZE     (8)
-#define SHELL_BUFSIZE     (512)
+#define SHELL_BUFSIZE     (256)
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
 extern int udp_cmd(int argc, char **argv);

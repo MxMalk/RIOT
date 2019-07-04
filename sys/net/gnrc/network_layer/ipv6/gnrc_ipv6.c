@@ -263,21 +263,19 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             break;
         case GNRC_IPSEC_F_PROTECT:
             DPRINT("ipv6_ipsec: SND PROTECT\n");
-            /*if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
                 DPRINT("ipsec: no IPsec thread found\n");
                 gnrc_pktbuf_release(pkt);
             }                   
-            return;   */ 
-            break; 
+            return;
         case GNRC_IPSEC_F_DISCARD:
             DPRINT("ipv6_ipsec: SND DISCARD\n");
-            /* gnrc_pktbuf_release(pkt);
-            return;*/
-            break;
+            gnrc_pktbuf_release(pkt);
+            return;
         case GNRC_IPSEC_F_ERR:
             DPRINT("ipv6_ipsec: GNRC_IPSEC_F_ERR\n");
-            /*gnrc_pktbuf_release(pkt);
-            return; */
+            gnrc_pktbuf_release(pkt);
+            return;
             break;
     }
 #endif

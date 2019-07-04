@@ -66,12 +66,12 @@ typedef struct __attribute__((packed)) {
 } ipv6_esp_hdr_t;
 
 /**
-* @brief Data type to represent an ESP packet trailer.
+ * @brief Data type to represent an ESP packet trailer.
+ * TODO: maybe remove trl alltougether.
 */
 typedef struct __attribute__((packed)) {
 	uint8_t pl;
 	uint8_t nh;
-  uint64_t icv;
 } ipv6_esp_trl_t;
 
 /**

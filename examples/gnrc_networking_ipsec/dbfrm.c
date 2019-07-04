@@ -26,12 +26,11 @@
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
 
 static void _print_help(void) {
-    printf("## dbfrm help:\n"
-        "Unused optional fields must be NULL'ed\n"
+     printf("## dbfrm help:\n"
         "{} fields can be NULL'ed when no SA is needed\n"
-        "Input string: action  {id}  {spi}  dst  src  proto  [port_dst] "
-        "[port_src] {mode}\n"
-        "\t{auth} {auth_key} {enc} {enc_key} [t_src] [t_dst]\n\n"
+        "Input string: action {id}  {spi}  dst  src  proto  port_dst "
+        "port_src {mode}\n"
+        "\t{c_mode} {auth} {hash_key} {enc} {enc_key} {iv} {t_src} {t_dst}\n\n"
         "action:\t\tprotect, bypass, discard\n"
         "id:\t\tunique sa id (uint16)\n"
         "spi:\t\tuint32\n"
@@ -41,59 +40,68 @@ static void _print_help(void) {
         "port_dst:\tport/socket (uint16) or NULL\n"
         "port_src:\tport/socket (uint16) or NULL\n"
         "mode:\t\t'transport', 'tunnel'\n"
+        "c_mode:\t\t'auth', 'authenc', 'comb'\n"
         "auth:\t\t'none', 'sha'\n"
-        "auth_key:\t512bit key in lower case hex\n"
-        "enc:\t\t'none', 'sha', 'chacha'\n"
-        "enc_key:\t512bit key in lower case hex\n"
+        "hash_key:\tKey in lower case hex or '0'\n"
+        "enc:\t\t'none', 'aes', 'chacha', 'mockup'\n"
+        "enc_key:\tKey in lower case hex or '0'\n"
+        "iv:\tIV in lower case hex or '0'\n"
         "t_src:\t\tipv6 address or NULL\n"
         "t_dst:\t\tipv6 address or NULL\n");
 }
 
-bool _str_to_uint32(const char *str, uint32_t *res) {
+int _str_to_uint32(const char *str, uint32_t *res) {
     char *end;
     
     unsigned long val = strtoul(str, &end, 10);
     if (end == str || *end != '\0') {
-        return false;
+        return 0;
     }
     *res = (uint32_t)val;
-    return true;
+    return 1;
 }
 
-bool _str_to_uint16(const char *str, uint16_t *res) {
+int _str_to_uint16(const char *str, uint16_t *res) {
     char *end;
     long val = strtol(str, &end, 10);
     if (end == str || *end != '\0' || val < 0 || val >= (long)UINT16_MAX) {
-        return false;
+        return 0;
     }
     *res = (uint16_t)val;
-    return true;
+    return 1;
 }
 
-bool _str_to_uint8(const char *str, uint8_t *res) {
+int _str_to_uint8(const char *str, uint8_t *res) {
     char *end;
     long val = strtol(str, &end, 10);
     if (end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
-        return false;
+        return 0;
     }
     *res = (uint8_t)val;
-    return true;
+    return 1;
 }
 
-bool _hex_to_uint8(const char *str, uint8_t *res) {
+int _hex_to_uint8(const char *str, uint8_t *res) {
     char *end;
     long val = strtol(str, &end, 16);
     if (end == str || *end != '\0' || val < 0 || val >= (long)UINT8_MAX) {
-        return false;
+        return 0;
     }
     *res = (uint8_t)val;
-    return true;
+    return 1;
 }
 
-/* little endian hex conversion */
-bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
+/* hex to bytedata conversion */
+int _hex_str_to_key(const char *str, uint8_t *key, size_t keylen) {
+    if(strcmp(str, "0") == 0) {
+        memset(key, 0, keylen);
+        return 1;
+    }
     /* 1 byte == 2 hex chars */
-    assert( (strlen(str) <= IPSEC_MAX_KEY_SIZE*2) && (strlen(str) % 2 == 0) );
+    if( ! (strlen(str) <= keylen*2) && (strlen(str) % 2 == 0) ) {
+        printf("dbfrm: ERROR: errornous string length\n");
+        return 0;
+    }
     /* check if string is valid hex */
     for(int i = 0; i < (int)strlen(str); i++) {
         char c = str[i];
@@ -101,20 +109,17 @@ bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
                 ((c > 96)&&(c < 103)) || 
                 ((c > 64)&&(c < 71))  )) {
             printf("dbfrm: ERROR: Malformed hex string\n");
-            return false;
+            return 0;
         }
     }
     char* tmp_str;
-    int empyt_bites = (int)IPSEC_MAX_KEY_SIZE*2 - (int)strlen(str);
-    for(int i = 0; i < empyt_bites; i++) {
-        tmp_str = "00";
-        _hex_to_uint8(tmp_str, &key->key[i]);
-    }
-    for(int i = empyt_bites; i < (int)IPSEC_MAX_KEY_SIZE*2; i++) {        
+    size_t empyt_bytes = (int)(keylen*2 - strlen(str));
+    memset(key, 0, empyt_bytes);
+    for(size_t i = empyt_bytes; i < keylen; i++) {        
         tmp_str = strncpy(tmp_str, str + i*2, 2);
-        _hex_to_uint8(tmp_str, &key->key[i]);
+        _hex_to_uint8(tmp_str, &key[i]);
     }
-    return true;
+    return 1;
 }
 
 /* ATM we do not handle combined cypher in this helper and we pass sa and spd 
@@ -123,24 +128,64 @@ bool _hex_str_to_ipsec_key(const char *str, ipsec_cypher_key_t *key) {
  * refer to RFC4301 section 4.4.1.1. */
 static int _install_sa_hard(char *action, char *id, char *spi, char *dst, 
         char *src, char *proto,
-        char *port_dst, char *port_src, char *mode, char *auth, char *auth_key,
-        char *enc, char *enc_key, char *t_src, char *t_dst) {
-
-    ipsec_sa_t *sa = NULL;
-    ipsec_sp_cache_t *sp = NULL; 
+        char *port_dst, char *port_src, char *mode, char *c_mode, char *auth, 
+        char *hash_key, char *enc, char *enc_key, char *iv, char *t_src, 
+        char *t_dst, ipsec_sp_cache_t *sp, ipsec_sa_t *sa) {    
 
     if(strcmp(action, "protect") == 0) {
 
-        /* Create SA */
-        sa = calloc(1, sizeof(ipsec_sa_t));
+        /* Fill SA */
         /* everything not addressed was set zero by calloc */
+        if(strcmp("auth", c_mode) == 0) {
+            sa->c_mode = IPSEC_CIPHER_M_AUTH_ONLY;
+            sp->c_mode = IPSEC_CIPHER_M_AUTH_ONLY;
+        } else if (strcmp("authenc", c_mode) == 0) {
+            sa->c_mode = IPSEC_CIPHER_M_ENC_N_AUTH;
+            sp->c_mode = IPSEC_CIPHER_M_ENC_N_AUTH;
+        } else if (strcmp("comb", c_mode) == 0) {            
+            sa->c_mode = IPSEC_CIPHER_M_COMB;          
+            sp->c_mode = IPSEC_CIPHER_M_COMB;
+        } else {
+            printf("dbfrm: unsupported crypto mode\n");
+            return 0;
+        }
+
+        if(strcmp("sha", auth) == 0) {
+            sa->crypt_info.hash = IPSEC_HASH_SHA2_512_256;
+        } else if (strcmp("none", auth) == 0) {
+            sa->crypt_info.hash = IPSEC_HASH_NONE;
+        } else {
+            printf("dbfrm: unsupported auth mode\n");
+            return 0;
+        }
+
+        if(strcmp("chacha", enc) == 0) {
+            sa->crypt_info.cipher = IPSEC_CIPHER_CHACHA_POLY;
+        } else if (strcmp("aes", enc) == 0) {
+            sa->crypt_info.cipher = IPSEC_CIPHER_AES_CTR;
+        } else if (strcmp("mockup", enc) == 0) {
+            sa->crypt_info.cipher = IPSEC_CIPHER_MOCK;
+        } else if (strcmp("none", enc) == 0) {
+            sa->crypt_info.cipher = IPSEC_CIPHER_NONE;
+        } else {
+            printf("dbfrm: unsupported cipher\n");
+            return 0;
+        }
+
         if( ! ( _str_to_uint16(id, &sa->id) && 
-            _str_to_uint32(spi, &sa->spi) &&
-            _hex_str_to_ipsec_key(enc_key, &sa->encr_key) &&
-            _hex_str_to_ipsec_key(auth_key, &sa->auth_key) ) ) {
-                printf("dbfrm: SA parsing unsuccessful\n");
-                free(sa);
-                return -1;
+            _str_to_uint32(spi, &sa->spi) ) ) {
+                printf("dbfrm: integer parsing unsuccessful\n");
+                return 0;
+        }
+
+        /* We copy everything any way to ease error handling. No sanity checks
+         * on keys are performed. Individual crypto methods would have to check
+         * if the keys fit their needs. */
+        if( ! ( _hex_str_to_key(iv, sa->crypt_info.iv, IPSEC_MAX_IV_SIZE) &&
+            _hex_str_to_key(enc_key, sa->crypt_info.key, IPSEC_MAX_KEY_SIZE) &&
+            _hex_str_to_key(hash_key, sa->crypt_info.hash_key, IPSEC_MAX_HASH_SIZE) ) ) {
+                printf("dbfrm: hex parsing unsuccessful\n");
+                return 0;
         }
         sa->rp_u_bound = IPSEC_ANTI_R_WINDOW_SIZE - 1;
         sa->re_lt =     86400000; /* 24h */
@@ -154,31 +199,30 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             sa->mode = GNRC_IPSEC_M_TUNNEL;
         } else {
             printf("dbfrm: SA mode parsing unsuccessful\n");
-            free(sa);
-            return -1;
+            return 0;
         }
         if(sa->mode == GNRC_IPSEC_M_TUNNEL){
             if((ipv6_addr_from_str(&sa->tunnel_dst, t_src) == NULL) ||
                 (ipv6_addr_from_str(&sa->tunnel_src, t_dst) == NULL) ) {
                     printf("dbfrm: Tunnel address parsing unsuccessful\n");
-                    free(sa);
-                    return -1;
+                    return 0;
             }
         } else {
             sa->tunnel_dst = ipv6_addr_unspecified;
             sa->tunnel_src = ipv6_addr_unspecified;
         }
+        /* finally link sa to spd by spi */
+        sp->sa = sa->spi;
+    } else {
+        sp->c_mode = IPSEC_CIPHER_M_NONE;
     }
     
 
-    /* Create SP */
-
-    sp = calloc(1, sizeof(ipsec_sp_t));
+    /* Fill SP */
     /* everything not addressed was set zero by calloc */
     if((ipv6_addr_from_str(&sp->dst, dst) == NULL) ||
         (ipv6_addr_from_str(&sp->src, src) == NULL) ) {
             printf("dbfrm: SP IPv6 parsing unsuccessful\n");
-            free(sp);
             return -1;
     }
     if(strcmp(proto, "any") == 0) {
@@ -186,7 +230,6 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
     } else {
         if( !_str_to_uint8(proto, &sp->nh)) {
             printf("dbfrm: SP proto parsing unsuccessful\n");
-            free(sp);
             return -1;
         }
     }
@@ -204,53 +247,7 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         sp->rule = GNRC_IPSEC_F_PROTECT;
     } else {
         printf("dbfrm: SP rule parsing unsuccessful\n");
-        free(sp);
-        return -1;
-    }
-    /* only for protected traffic */
-    if( sp->rule == GNRC_IPSEC_F_PROTECT ) {
-        if(strcmp("none", enc) == 0) {
-            sp->encr_cypher = IPSEC_CYPHER_NONE;
-        } else if (strcmp("sha", enc) == 0) {
-            sp->encr_cypher = IPSEC_CYPHER_SHA;
-        } else if (strcmp("chacha", enc) == 0) {        
-            sp->encr_cypher = IPSEC_CYPHER_CHACHA;
-        } else if (strcmp("mock", enc) == 0) {        
-            sp->encr_cypher = IPSEC_CYPHER_MOCK;
-        } else {
-            printf("dbfrm: SP parsing unsuccessful\n");
-            free(sp);
-            return -1;
-        }
-        if(strcmp("none", auth) == 0) {
-            sp->auth_cypher = IPSEC_CYPHER_NONE;
-        } else if (strcmp("mock", auth) == 0) {
-            sp->auth_cypher = IPSEC_CYPHER_MOCK;
-        } else {
-            printf("dbfrm: SP parsing unsuccessful\n");
-            free(sp);
-            return -1;
-        }
-        if(strcmp("transport", mode) == 0) {
-            sp->tun_mode = GNRC_IPSEC_M_TRANSPORT;
-            /* ports NULLed by calloc */
-        } else if (strcmp("tunnel", mode) == 0) {
-            sp->tun_mode = GNRC_IPSEC_M_TUNNEL;
-            if((ipv6_addr_from_str(&sp->tunnel_dst, t_src) == NULL) ||
-                (ipv6_addr_from_str(&sp->tunnel_src, t_dst) == NULL )) {
-                    printf("dbfrm: Tunnel address faulty\n");
-                    free(sp);
-                    return -1;
-                }
-        } else {
-            printf("dbfrm: SP mode parsing unsuccessful\n");
-            free(sp);
-            return -1;
-        }
-        if(sa != NULL) {
-            sp->sa = sa->spi;
-        }
-        
+        return 0;
     }
 
     /* instead of producing a very poor verison of the pf_key communication we
@@ -273,35 +270,41 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
         free(rpl);
     } */
 
-
-    /* sa may be NULL */
     if( ! ipsec_inject_db_entries(sp, sa)) {
-        free(sp);
-        free(sa);
-        return -1;
+        return 0;
     }
-    free(sp);
-    free(sa);
     return 1;
 }
 
 int ipsec_sad_frm(int argc, char **argv) {
+
+    ipsec_sa_t *sa = NULL;
+    ipsec_sp_cache_t *sp = NULL; 
 
     if(argc<2) {
         _print_help();
         return 0;
     }
 
-    if(argc==16) {
+    if(argc==18) {
+
+        sp = calloc(1, sizeof(ipsec_sp_t));
+        sa = calloc(1, sizeof(ipsec_sa_t));
+        
         /* Some sanity checks on the input are needed*/
         int result = _install_sa_hard(argv[1],argv[2],argv[3],argv[4],argv[5],
             argv[6],argv[7],argv[8],argv[9], argv[10], argv[11], argv[12], 
-            argv[13], argv[14], argv[15]);
-        if(result < 1) {
+            argv[13], argv[14], argv[15], argv[16], argv[17], sp, sa);
+        if(!result) {
             printf("dbfrm: No changes could be made. ERR_NR: %i\n", result);
         } else {
             printf("dbfrm: spi: %s was added/changed successfully.\n", argv[3]);
         }
+        /* entries get copied into new form by the keyengine. That way we can
+         * change the IPsec database representation more indipendently for 
+         * future development*/
+        free(sa);
+        free(sp);
     } else {
         printf("dbfrm: wrong number of aguments. argc = %i\n", argc);
     }

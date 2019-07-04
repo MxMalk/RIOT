@@ -71,53 +71,24 @@ void _ipsec_parse_spd(void) {
      * Since the SPD only gets checked if caches return no result, PROTECTED
      * entries to this table aren't required since they will be created when
      * injecting by dbfrm. When start to have real dynamic keying, we
-     * can add those entries here too and IKEv2 will takecare of missing SAs
-     * if needed*/
+     * need to add those entries here too and IKEv2 has to takecare of missing 
+     * SA entries if needed*/
     ipsec_sp_t *spd_pointer;
     spd_size = 3 * sizeof(ipsec_sp_t);
     spd = malloc(spd_size);
     spd_pointer = spd;
 
-    char* own_ip = "fe80::c8ff:e6ff:feed:7e8c";
-
 /* SPD ENTRY NUMBER 1 */
     ipv6_addr_from_str(&spd_pointer->dst, "::1");
     ipv6_addr_from_str(&spd_pointer->src, "::1");
+    spd_pointer->pfp_flag = 1;
     spd_pointer->nh = 255;
     spd_pointer->dst_port = 0;    
     spd_pointer->src_port = 0;
-
     spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
     spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
-    spd_pointer->encr_cypher = IPSEC_CYPHER_NONE;
-
-    spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
-    spd_pointer->comb_cypher = IPSEC_CYPHER_NONE;
+    spd_pointer->c_mode = IPSEC_CIPHER_M_NONE;
     spd_pointer->tunnel_src = ipv6_addr_unspecified;
-
-    spd_pointer->tunnel_dst = ipv6_addr_unspecified;
-    spd_pointer->dst_range = ipv6_addr_unspecified;
-    spd_pointer->src_range = ipv6_addr_unspecified;
-    spd_pointer->dst_port_range = 0;
-    spd_pointer->src_port_range = 0;
-    
-
- /* SPD ENTRY NUMBER 2 */
-    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
-    spd_pointer->dst = ipv6_addr_unspecified;
-    ipv6_addr_from_str(&spd_pointer->src, own_ip);
-    spd_pointer->nh = 50;
-    spd_pointer->dst_port = 0;    
-    spd_pointer->src_port = 0;
-
-    spd_pointer->rule = GNRC_IPSEC_F_PROTECT; 
-    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
-    spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
-
-    spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
-    spd_pointer->comb_cypher = IPSEC_CYPHER_NONE;
-    spd_pointer->tunnel_src = ipv6_addr_unspecified;
-
     spd_pointer->tunnel_dst = ipv6_addr_unspecified;
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
@@ -129,18 +100,14 @@ void _ipsec_parse_spd(void) {
     spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
     spd_pointer->dst = ipv6_addr_unspecified;
     spd_pointer->src = ipv6_addr_unspecified;
+    spd_pointer->pfp_flag = 1;
     spd_pointer->nh = 255;
     spd_pointer->dst_port = 0;    
     spd_pointer->src_port = 0;
-
     spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
     spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
-    spd_pointer->encr_cypher = IPSEC_CYPHER_SHA;
-
-    spd_pointer->auth_cypher = IPSEC_CYPHER_NONE;
-    spd_pointer->comb_cypher = IPSEC_CYPHER_NONE;
+    spd_pointer->c_mode = IPSEC_CIPHER_M_NONE;
     spd_pointer->tunnel_src = ipv6_addr_unspecified;
-
     spd_pointer->tunnel_dst = ipv6_addr_unspecified;
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
@@ -316,6 +283,8 @@ const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
 int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule, 
                             ipsec_ts_t* ts, TrafficMode_t mode,
                             ipsec_sa_t* sa) {
+    /* TODO: aknowledge pfflag and act accordingly. For now all entries are
+    filled from the sp rule information */
     sp_entry->dst = ts->dst;
     sp_entry->src = ts->src;
     sp_entry->nh = ts->prot;
@@ -331,9 +300,7 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
     }
     sp_entry->rule = spd_rule->rule;
     sp_entry->tun_mode = spd_rule->tun_mode;
-    sp_entry->encr_cypher = spd_rule->encr_cypher;
-    sp_entry->auth_cypher = spd_rule->auth_cypher;
-    sp_entry->comb_cypher = spd_rule->comb_cypher;
+    sp_entry->c_mode = spd_rule->c_mode;
     sp_entry->tunnel_src = spd_rule->tunnel_src;
     sp_entry->tunnel_dst = spd_rule->tunnel_dst;
 
@@ -439,10 +406,6 @@ int ipsec_inject_db_entries(ipsec_sp_cache_t* sp, ipsec_sa_t* sa) {
     TrafficMode_t traffic_mode;
     
     if(sp->rule == GNRC_IPSEC_F_PROTECT) {
-        if(sa == NULL) {
-            DEBUG("ipsec_keyeng: injected sa musn't be NULL on PROTECT rules\n");
-            return -1;
-        }
         if(!_add_sa_entry(sa)) {
             DEBUG("ipsec_keyeng: injected sa entry could not be created\n");
         return 0;

@@ -67,6 +67,14 @@ ipsec_ts_t* ipsec_ts_from_info(ipv6_addr_t dst, ipv6_addr_t src,
         uint8_t protnum, network_uint16_t *dst_port, 
         network_uint16_t *src_port, ipsec_ts_t *ts);
 
+/**
+ * @brief Helper function externalized for reuse in esp header processing.
+ * 
+ * gets handed the a snip with type != 255 and iterates over the data of
+ * this snip in search of the first header not beeing in PrevHeaders and
+ * returns data pointer and IP protonum of it */
+void find_payload_in_umarked(gnrc_pktsnip_t *snip, uint8_t *p_protnum, 
+                                void **payload_h);
 
 #ifdef __cplusplus
 }

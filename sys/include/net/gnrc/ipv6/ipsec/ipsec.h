@@ -115,17 +115,6 @@ kernel_pid_t ipsec_init(void);
  */
 FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t* ts);
 
-
-/**
- * @brief   ESP header handler for incomming ESP traffic
- *
- * @param[in] pkt   IPv6 packet containing ESP header
- *
- * @return ESP processed IPv6 packet with pkt snip pointer to previous header
- */
-gnrc_pktsnip_t *ipsec_handle_esp(gnrc_pktsnip_t *pkt);
-
-
 /**
  * @brief   DEBUG helper method prints snip info and ipv6 addresses if 
  *          available

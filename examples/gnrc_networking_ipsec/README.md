@@ -1,4 +1,4 @@
-# gnrc_networking_ipsec example
+## gnrc_networking_ipsec example
 
 In this example we get the minimal ESP implementation in RIOT OS working to test it against itself and other implementations of ESP.
 
@@ -10,9 +10,9 @@ For now the SPD rules are hardcoded inline at the top of gnrc_ipv6_keyengine.c. 
 
 # dbfrm --help
 
-Unused optional fields must be NULL'ed
 {} fields can be NULL'ed when no SA is needed
-Input string: action {id} {spi} dst src proto [port_dst] [port_src] {mode} {auth} {auth_key} {enc} {enc_key} [t_src] [t_dst]
+Input string: action {id}  {spi}  dst  src  proto  port_dst port_src {mode}
+	{c_mode} {auth} {hash_key} {enc} {enc_key} {iv} {t_src} {t_dst}
 
 action:		protect, bypass, discard
 id:		unique sa id (uint16)
@@ -23,25 +23,33 @@ proto:		IP protnum or 'any'
 port_dst:	port/socket (uint16) or NULL
 port_src:	port/socket (uint16) or NULL
 mode:		'transport', 'tunnel'
-auth:		'none', 'mock'
-auth_key:	512bit key in lower case hex
-enc:		'none', 'sha', 'chacha', 'mock'
-enc_key:	512bit key in lower case hex
+c_mode:		'auth', 'authenc', 'comb'
+auth:		'none', 'sha'
+hash_key:	Key in lower case hex or '0'
+enc:		'none', 'aes', 'chacha', 'mockup'
+enc_key:	Key in lower case hex or '0'
+iv:	IV in lower case hex or '0'
 t_src:		ipv6 address or NULL
 t_dst:		ipv6 address or NULL
 
-# Sample setup
+## Sample setup
 
-PROTECTS and encrypts UDP traffic from Client#1 to Client#2
 
-#!#! WIP !#!#
+Sends and PROTECTs UDP traffic between two instances
 
-Client #1:
-ifconfig 8 add 2000::1/64
 
-dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL transport mock 'bd9a51e0f1e4c306' mock 'b7396d693045f060' NULL NULL
-
-Client #2:
+#RCV Client:
 ifconfig 8 add 2000::2/64
 
-dbfrm protect '42' '13371337'  '2000::2' '2000::1' 17  NULL NULL transport mock 'bd9a51e0f1e4c306' mock 'b7396d693045f060' NULL NULL
+udp server start 666
+
+dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL transport comb none '0' mockup 'b7396d693045f060' '4242424242' NULL NULL
+
+
+#SND Client:
+ifconfig 8 add 2000::1/64
+
+dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL transport comb none '0' mockup 'b7396d693045f060' '4242424242' NULL NULL
+
+udp send 2000::2 666 "In Search of Payload"
+

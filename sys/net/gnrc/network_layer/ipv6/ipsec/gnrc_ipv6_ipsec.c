@@ -89,8 +89,12 @@ void ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
     }
     
 	while (snip != NULL) {
-		printf("snip %i: protnum: %i size: %i\n", i, 
-                gnrc_nettype_to_protnum(snip->type), snip->size);
+        if(snip->type == -1){
+            printf("snip %i: protnum: IH size: %i\n", i, snip->size);
+        } else {
+            printf("snip %i: protnum: %i size: %i\n", i, 
+                            gnrc_nettype_to_protnum(snip->type), snip->size);
+        }		
 		snip = snip->next;
 		i++;
 	}
@@ -108,7 +112,7 @@ static void _send_to_interface(gnrc_pktsnip_t *pkt)
     /* Interface should allready be set correctly. If not abort*/
     LL_SEARCH_SCALAR(pkt, snip, type, GNRC_NETTYPE_NETIF);
     if(snip == NULL) {
-        //TODO: error message
+        DEBUG("ipsec: ERROR: netif header lost\n");
         return;
     }
     netif = gnrc_netif_hdr_get_netif(snip->data);
@@ -116,18 +120,13 @@ static void _send_to_interface(gnrc_pktsnip_t *pkt)
 #ifdef MODULE_NETSTATS_IPV6
     netif->ipv6.stats.tx_success++;
     netif->ipv6.stats.tx_bytes += gnrc_pkt_len(pkt->next);
-#endif        
+#endif
+    printf("HEYYYA!!! pkt shortly before netapi_send\n");
+    ipsec_show_pkt(pkt);        
     if (gnrc_netapi_send(netif->pid, pkt) < 1) {
             DEBUG("ipsec: unable to send packet\n");
             gnrc_pktbuf_release(pkt);
     }
-}
-
-gnrc_pktsnip_t *ipsec_handle_esp(gnrc_pktsnip_t *pkt) {
-    /* TODO EXT header processing and stripping
-     * gnrc_pktbuf_start_write(pkt)
-     * gnrc_pktbuf_remove_snip(tmp_pkt, tmp_pkt); */
-    return pkt;
 }
 
 FilterRule_t ipsec_get_filter_rule(TrafficMode_t mode, ipsec_ts_t *ts){
@@ -197,7 +196,7 @@ static void *_event_loop(void *args)
                     gnrc_pktbuf_release(pkt);
                     return NULL;
                 }
-                if(!esp_header_build(pkt, sa, sp, &ts)){
+                if(!esp_header_build(pkt, sa, &ts)){
                     DEBUG("ipsec_thread: Tx couldn't create esp header\n");
                     gnrc_pktbuf_release(pkt);
                     return NULL;

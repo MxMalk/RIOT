@@ -64,12 +64,17 @@ extern "C" {
 /**
  * @brief   size of fixed cypher key memory in byte
  */
-#define IPSEC_CHACHA_KEY_SIZE      (32U)
+#define IPSEC_MAX_HASH_SIZE      (32U)
+
+/**
+ * @brief   size of fixed cypher key memory in byte
+ */
+#define IPSEC_MAX_KEY_SIZE      (32U)
 
 /**
  * @brief   size of fixed cypher nounce memory in byte
  */
-#define IPSEC_CHACHA_NOUNCE_SIZE      (12U)
+#define IPSEC_MAX_IV_SIZE      (12U)
 
 
 /**
@@ -100,34 +105,44 @@ typedef enum ipsec_dbtype {
 }ipsec_dbtype_t;
 
 /**
+ * @brief   Supported ESP hashes
+ */
+typedef enum {
+    IPSEC_HASH_NONE	= 0, 
+    IPSEC_HASH_SHA2_512_256	= 1,    
+}ESP_hash_t;
+
+/**
  * @brief   Supported ESP ciphers
  */
 typedef enum {
-    IPSEC_CYPHER_CHACHA_POLY	= 1,    /* chacha20_poly1305 AEAD cipher RFC7634 */
-    IPSEC_CYPHER_MOCK	        = 2     /* mockup debug cipher */
+    IPSEC_CIPHER_NONE	        = 0,    
+    IPSEC_CIPHER_MOCK	        = 1,    /* mockup debug cipher */
+    IPSEC_CIPHER_AES_CTR        = 2,
+    IPSEC_CIPHER_CHACHA_POLY	= 3     /* chacha20_poly1305 AEAD cipher RFC7634 */
 }ESP_cipher_t;
 
 /**
  * @brief   Possible ESP cipher modes
  */
 typedef enum {
-    IPSEC_CYPHER_M_AUTH_ONLY    = 0,    
-    IPSEC_CYPHER_M_ENC_N_AUTH   = 1,  
-    IPSEC_CYPHER_M_COMB	        = 2
+    IPSEC_CIPHER_M_NONE         = 0,    /* NONE mustn't go with PROTECTED traffic */
+    IPSEC_CIPHER_M_AUTH_ONLY    = 1,    
+    IPSEC_CIPHER_M_ENC_N_AUTH   = 2,  
+    IPSEC_CIPHER_M_COMB	        = 3
 }ESP_crypto_mode_t;
 
 /** 
  * @brief   ESP cryptography details.
  * 
- * @note For support of other ciphers or modes, fields could be added, modified
- * or an overall more dynamic structure could be used.
+ * @note TODO: find a generalized solution to the keysize problem
  */
 typedef struct __attribute__((__packed__)) {
     ESP_cipher_t cipher;
-    // TODO: how to handle endianness in this case?
-    uint8_t key[IPSEC_CHACHA_KEY_SIZE];
-    uint8_t iv[IPSEC_CHACHA_NOUNCE_SIZE]; /* TODO: really?(endianness) last 8 byte are IV nounce,
-                        first 8 bit are the negotiated salt */
+    ESP_hash_t hash;
+    uint8_t key[IPSEC_MAX_KEY_SIZE];
+    uint8_t hash_key[IPSEC_MAX_HASH_SIZE];
+    uint8_t iv[IPSEC_MAX_IV_SIZE];
 } ipsec_crypto_info_t;
 
 /* TODO: replay window management and assertion must added. Probably best
@@ -147,7 +162,7 @@ typedef struct __attribute__((__packed__)) {
     uint64_t rp_u_bound;    /**< replay window upper bound */
     uint64_t rp_window[IPSEC_ANTI_R_WINDOW_SIZE];   /**< replay window content */
     ESP_crypto_mode_t c_mode;                       /**< cryptographic mode */
-    ipsec_crypto_info_t crypt_info;                  /**< combined cypher key, mode, etc. */
+    ipsec_crypto_info_t crypt_info;                  /**< cypher key, mode, etc. */
     uint32_t re_lt;         /**< renegotiation after milliseconds */
     uint32_t re_bc;         /**< renegotiation after bytecount */
     uint32_t max_lt;        /**< maximum lifetime in milliseconds */
@@ -166,8 +181,7 @@ typedef struct __attribute__((__packed__)) {
  * rudimentary implementation not supporting ranges or wildcards, omitting
  * not needed fields like AH/ESP flag, Bypass DF bit. Consult RFC 4301 section
  * 4.4.1.1. for more information.
- * 
- * We only support combined mode cypher, so only one field is needed. * 
+ *   
  */
 typedef struct __attribute__((__packed__)) ipsec_sp_cache {
     ipv6_addr_t dst;            /**< destination ipv6 address */
@@ -179,7 +193,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp_cache {
                                 for UDP/TCP */
     FilterRule_t rule;          /**< firewall filter rule */
     TunnelMode_t tun_mode;      /**< (0)TRANSPORT mode, (1)TUNNEL mode */
-    ESP_cypher_t comb_cypher;   /**< combined cypher mode */
+    ESP_crypto_mode_t c_mode;   /**< cypher mode */
     ipv6_addr_t tunnel_dst;     /**< tunnel destination ipv6 address */
     ipv6_addr_t tunnel_src;     /**< tunnel source ipv6 address */
     uint32_t sa;                /**< 0 if not associated with a SAD entry */
@@ -189,9 +203,10 @@ typedef struct __attribute__((__packed__)) ipsec_sp_cache {
  * @brief   Security Policy Database CACHE (SPD cache) entry type 
  *  
  */
-typedef struct __attribute__((__packed__)) ipsec_sp {    
+typedef struct __attribute__((__packed__)) ipsec_sp {        
     ipv6_addr_t dst;            /**< destination ipv6 address */
     ipv6_addr_t src;            /**< source ipv6 address */
+    uint8_t pfp_flag;           /**< populate spd details from packet flag*/
     uint8_t nh;                 /**< payloads IP protocoll number */
     uint16_t dst_port;          /**< Traffic Selector(TS) destination port 
                                 number for UDP/TCP */  
@@ -199,7 +214,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp {
                                 for UDP/TCP */
     FilterRule_t rule;          /**< firewall filter rule */
     TunnelMode_t tun_mode;      /**< (0)TRANSPORT mode, (1)TUNNEL mode */
-    ESP_cypher_t comb_cypher;   /**< combined cypher mode */
+    ESP_crypto_mode_t c_mode;   /**< cypher mode */
     ipv6_addr_t tunnel_dst;     /**< tunnel destination ipv6 address */
     ipv6_addr_t tunnel_src;     /**< tunnel source ipv6 address */
 

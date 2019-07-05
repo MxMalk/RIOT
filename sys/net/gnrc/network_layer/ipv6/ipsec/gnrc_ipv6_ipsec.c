@@ -170,7 +170,7 @@ static void *_event_loop(void *args)
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_SND:
                 DEBUG("ipsec_thread: Tx GNRC_NETAPI_MSG_TYPE_SND\n");
-#ifdef ENABLE_DEBUG
+#if ENABLE_DEBUG == 1
                 ipsec_show_pkt(msg.content.ptr);
 #endif          
                 pkt = msg.content.ptr;

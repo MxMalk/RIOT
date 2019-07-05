@@ -18,7 +18,7 @@
 
 #include "net/gnrc/ipv6/ipsec/esp.h"
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 static int _encrypt(gnrc_pktsnip_t *esp, const ipsec_sa_t *sa) {
@@ -113,6 +113,31 @@ static int _calc_fields(const ipsec_sa_t *sa, uint8_t *iv_size, uint8_t *icv_siz
 	return 1;
 }
 
+static gnrc_pktsnip_t *_build_self_encap(gnrc_pktsnip_t *ipv6) {
+	/* A simple merge and copy operation is not possiblehere , since we still
+	 * need the original ipv6 header intact and marked. So we duplicate the 
+	 * whole packet by hand (since the gnrc function for this is 
+	 * deprecated/gone) and merge it thereafter. */
+	gnrc_pktsnip_t *tmp_pkt;
+	gnrc_pktsnip_t *snip;
+
+	size_t tmp_size = gnrc_pkt_len_upto(ipv6, 255);
+	tmp_pkt = gnrc_pktbuf_add(NULL, NULL, tmp_size, 
+									gnrc_nettype_from_protnum(255));
+	snip = ipv6;
+	int p = 0;
+	while(snip != NULL) {
+		memcpy((uint8_t *)tmp_pkt->data + p, snip->data, snip->size);
+		p += (int)snip->size;
+		snip = snip->next;
+	}
+	if(ipv6->next->next != NULL) {
+		gnrc_pktbuf_remove_snip(ipv6, ipv6->next->next);
+	}
+	ipv6 = gnrc_pktbuf_replace_snip(ipv6, ipv6->next, tmp_pkt);
+	return ipv6;
+}
+
 gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 		const ipsec_sa_t *sa, ipsec_ts_t *ts) {
 	gnrc_pktsnip_t *prev = NULL;
@@ -144,12 +169,9 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 
 	if(sa->mode == GNRC_IPSEC_M_TUNNEL) {
 		if( ipv6_addr_equal(&ts->dst, &sa->tun_dst) && 
-								ipv6_addr_equal(&ts->src, &sa->tun_src) ) {
+					ipv6_addr_equal(&ts->src, &sa->tun_src) ) {
 			DEBUG("ipsec_esp: TUNNEL self encapsulation mode\n");
-			gnrc_pktsnip_t *tmp_pkt;	
-			tmp_pkt = gnrc_pktbuf_duplicate_upto(ipv6, 255);
-			gnrc_pktbuf_merge(tmp_pkt);
-			ipv6 = gnrc_pktbuf_replace_snip(ipv6, ipv6->next, tmp_pkt);
+			ipv6 = _build_self_encap(ipv6);						
 		} else {
 			DEBUG("ipsec_esp: TUNNEL mode\n");
 			/* TODO: process foreign tunneled traffic.
@@ -177,14 +199,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 		return NULL;
 	}
 
-	gnrc_pktsnip_t *snip;
-	data_size = 0;
-	snip = next;
-	while(snip != NULL) {
-		data_size += snip->size;
-		snip = snip->next;
-	}
-
+	data_size = gnrc_pkt_len_upto(next, 255);
 	_calc_fields(sa, &iv_size, &icv_size, &block_size);
 	_calc_padding(&padding_size, (data_size+2), block_size);
 
@@ -258,15 +273,19 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 							GNRC_NETREG_DEMUX_CTX_ALL, pkt) == 0 ) {
 			DEBUG("ipsec_esp: ERROR unable netapi send packet\n");
 			gnrc_pktbuf_release(pkt);
+			return NULL;
 			*/
 		}
+		/* TODO: atm. we do not support intermediate ext header in self 
+		 * encapsulation mode */
+		itm_size = 0;
+	} else {
+		/* calculate intermediate headers between ipv6 and original data */
+		itm_size = byteorder_ntohs(ipv6_h->len) - data_size;
 	}
-
-	/* calculate intermediate headers between ipv6 and original data */
-	itm_size = byteorder_ntohs(ipv6_h->len) - ipv6->size - data_size;
-	/* adding packet to original ipv6 header */
-	((ipv6_hdr_t*)ipv6->data)->len = byteorder_htons(esp->size + itm_size
-												+ sizeof(ipv6_hdr_t));
+	
+	/* adjusting original ipv6 header fields */	
+	((ipv6_hdr_t*)ipv6->data)->len = byteorder_htons((uint16_t)(esp->size + itm_size));
 	if(prev->type == GNRC_NETTYPE_IPV6) {
 		((ipv6_hdr_t*)prev->data)->nh = PROTNUM_IPV6_EXT_ESP;
 	} else {
@@ -316,22 +335,25 @@ static int _is_self_encap(gnrc_pktsnip_t *outer_snip, gnrc_pktsnip_t *inner_ipv6
 }
 
 /* gets inner payload. old data_snip will be released */
-static gnrc_pktsnip_t *_extract_inner_pl(gnrc_pktsnip_t *data_snip) {
-	gnrc_pktsnip_t *tmp_snip;
-	size_t snip_size;
-	uint8_t protnum;
-	void* pl_pointer;
-	find_payload_in_umarked(data_snip, &protnum, &pl_pointer);
-	snip_size = (size_t)abs((int)pl_pointer - (int)data_snip->data);
-	tmp_snip = gnrc_pktbuf_add(NULL, NULL, snip_size, 
-									gnrc_nettype_from_protnum(protnum));
-	memcpy(tmp_snip->data, pl_pointer, tmp_snip->size);
+static gnrc_pktsnip_t *_extract_inner_pl(gnrc_pktsnip_t *data_snip, 
+							gnrc_pktsnip_t **sencap_ipv6) {
+	*sencap_ipv6 = gnrc_pktbuf_add(NULL, NULL, sizeof(ipv6_hdr_t),
+									GNRC_NETTYPE_IPV6);
+	memcpy((*sencap_ipv6)->data, data_snip->data, sizeof(ipv6_hdr_t));
+	/* remove ipv6 encap header from esp payload */
+	size_t inner_p_size = data_snip->size - sizeof(ipv6_hdr_t);
+	gnrc_pktsnip_t *tmp_pkt = gnrc_pktbuf_add(NULL, NULL, inner_p_size,
+												data_snip->type);
+	memcpy(tmp_pkt->data, (uint8_t*)data_snip->data + sizeof(ipv6_hdr_t), 
+				inner_p_size);
 	gnrc_pktbuf_release(data_snip);
-	return tmp_snip;
+	return tmp_pkt;
 }
 
 gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 	gnrc_pktsnip_t *data_snip;
+	gnrc_pktsnip_t *sencap_ipv6;
+	gnrc_pktsnip_t *new_ipv6;
 	const ipsec_sa_t *sa;
 	uint8_t *nh;
 
@@ -420,10 +442,10 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 		(((uint8_t*)esp->data) + sizeof(ipv6_esp_hdr_t) + iv_size), data_size);
 		
 	if((int)sa->mode == GNRC_IPSEC_M_TUNNEL) {
-		/* check if self encapsulated */
 		if( _is_self_encap(esp->next, data_snip) ) {
-			// TODO: assert equality of ipv6 headers
-			esp = _extract_inner_pl(data_snip);
+			/* TODO: atm. we only support elf encapsulation without additional
+			 * ext headers for now */
+			data_snip = _extract_inner_pl(data_snip, &sencap_ipv6);
 		} else {
 			if(!_rx_relay_tunnel(data_snip)) {
 				DEBUG("ipsec_esp: ERROR tunneled packet could not be sent\n");
@@ -436,10 +458,29 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 	}	
 	esp = gnrc_pktbuf_replace_snip(esp, esp, data_snip);
 
+	/* adjusting original ipv6 header fields*/	
+	LL_SEARCH_SCALAR(esp, new_ipv6, type, GNRC_NETTYPE_IPV6);
+	/* TODO: consider intermediate ext headers for len */
+	((ipv6_hdr_t*)new_ipv6->data)->len = byteorder_htons((uint16_t)esp->size);
 	if(esp->next->type == GNRC_NETTYPE_IPV6) {
 		((ipv6_hdr_t*)esp->next->data)->nh = gnrc_nettype_to_protnum(esp->type);
 	} else {	/* prev header is ext header */		 
 		((ipv6_ext_t*)esp->next->data)->nh = gnrc_nettype_to_protnum(esp->type);
+	}
+
+	if((int)sa->mode == GNRC_IPSEC_M_TUNNEL) {
+		if( sencap_ipv6 != NULL ) {
+			if(memcmp(new_ipv6->data, sencap_ipv6->data, sizeof(ipv6_hdr_t)) == 0) {
+				DEBUG("ipsec_esp: Self encapsulated paket is legit\n");
+			} else {
+				DEBUG("ipsec_esp: ERROR Self encapsulated paket"
+							" is not legit \n\tDiscarding packet.");
+				gnrc_pktbuf_release(sencap_ipv6);
+				return NULL;
+			}
+			// TODO: assert equality of inner ipv6 and rebuild header.
+			gnrc_pktbuf_release(sencap_ipv6);
+		}
 	}
 
 	return esp;

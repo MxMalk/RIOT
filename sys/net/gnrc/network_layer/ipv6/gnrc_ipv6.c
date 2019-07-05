@@ -43,7 +43,6 @@
 #define ENABLE_DEBUG    (0)
 #include "debug.h"
 
-/* TODO dev helper; remove */
 #define ENABLE_IPSEC_DEBUG    (1)
 #if ENABLE_IPSEC_DEBUG
 #define DPRINT(...) printf(__VA_ARGS__)

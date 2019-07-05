@@ -12,7 +12,7 @@ For now the SPD rules are hardcoded inline at the top of gnrc_ipv6_keyengine.c. 
 
 {} fields can be NULL'ed when no SA is needed
 Input string: action {id}  {spi}  dst  src  proto  port_dst port_src {mode}
-	{c_mode} {auth} {hash_key} {enc} {enc_key} {iv} {t_src} {t_dst}
+	{c_mode} {auth} {hash_key} {enc} {enc_key} {iv} {t_dst} {t_src}
 
 action:		protect, bypass, discard
 id:		unique sa id (uint16)
@@ -29,8 +29,8 @@ hash_key:	Key in lower case hex or '0'
 enc:		'none', 'aes', 'chacha', 'mockup'
 enc_key:	Key in lower case hex or '0'
 iv:	IV in lower case hex or '0'
-t_src:		ipv6 address or NULL
 t_dst:		ipv6 address or NULL
+t_src:		ipv6 address or NULL
 
 ## Sample setup
 
@@ -43,13 +43,13 @@ ifconfig 8 add 2000::2/64
 
 udp server start 666
 
-dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL transport comb none '0' mockup 'b7396d693045f060' '4242424242' NULL NULL
+dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL tunnel comb none '0' mockup 'b7396d693045f060' '4242424242' '2000::2' '2000::1'
 
 
 #SND Client:
 ifconfig 8 add 2000::1/64
 
-dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL transport comb none '0' mockup 'b7396d693045f060' '4242424242' NULL NULL
+dbfrm protect '42' '13371337' '2000::2' '2000::1' 17  NULL NULL tunnel comb none '0' mockup 'b7396d693045f060' '4242424242' '2000::2' '2000::1'
 
 udp send 2000::2 666 "In Search of Payload"
 

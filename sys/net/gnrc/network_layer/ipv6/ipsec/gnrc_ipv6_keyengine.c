@@ -14,7 +14,7 @@
 
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 #define COMBINED_DB_SIZE    (spd_size + spd_i_size + spd_o_size + sad_size)
@@ -78,7 +78,7 @@ void _ipsec_parse_spd(void) {
     spd = malloc(spd_size);
     spd_pointer = spd;
 
-/* SPD ENTRY NUMBER 1 */
+/* SPD ENTRY NUMBER 1: loopback traffic */
     ipv6_addr_from_str(&spd_pointer->dst, "::1");
     ipv6_addr_from_str(&spd_pointer->src, "::1");
     spd_pointer->pfp_flag = 1;
@@ -88,14 +88,32 @@ void _ipsec_parse_spd(void) {
     spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
     spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
     spd_pointer->c_mode = IPSEC_CIPHER_M_NONE;
-    spd_pointer->tunnel_src = ipv6_addr_unspecified;
-    spd_pointer->tunnel_dst = ipv6_addr_unspecified;
+    spd_pointer->tun_src = ipv6_addr_unspecified;
+    spd_pointer->tun_dst = ipv6_addr_unspecified;
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
     spd_pointer->src_port_range = 0;
 
- /* SPD ENTRY NUMBER 3 */
+/* SPD ENTRY NUMBER 2: ICMP traffic */
+    spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
+    spd_pointer->dst = ipv6_addr_unspecified;
+    spd_pointer->src = ipv6_addr_unspecified;
+    spd_pointer->pfp_flag = 1;
+    spd_pointer->nh = 58;
+    spd_pointer->dst_port = 0;    
+    spd_pointer->src_port = 0;
+    spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
+    spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
+    spd_pointer->c_mode = IPSEC_CIPHER_M_NONE;
+    spd_pointer->tun_src = ipv6_addr_unspecified;
+    spd_pointer->tun_dst = ipv6_addr_unspecified;
+    spd_pointer->dst_range = ipv6_addr_unspecified;
+    spd_pointer->src_range = ipv6_addr_unspecified;
+    spd_pointer->dst_port_range = 0;
+    spd_pointer->src_port_range = 0;
+
+ /* SPD ENTRY NUMBER 3: all other traffic */
     /* entry should use a range, but range detection is not implemented */
     spd_pointer = (ipsec_sp_t*)( (uint8_t*)spd_pointer + sizeof(ipsec_sp_t) );    
     spd_pointer->dst = ipv6_addr_unspecified;
@@ -104,11 +122,11 @@ void _ipsec_parse_spd(void) {
     spd_pointer->nh = 255;
     spd_pointer->dst_port = 0;    
     spd_pointer->src_port = 0;
-    spd_pointer->rule = GNRC_IPSEC_F_BYPASS; 
+    spd_pointer->rule = GNRC_IPSEC_F_DISCARD; 
     spd_pointer->tun_mode = GNRC_IPSEC_M_TRANSPORT;
     spd_pointer->c_mode = IPSEC_CIPHER_M_NONE;
-    spd_pointer->tunnel_src = ipv6_addr_unspecified;
-    spd_pointer->tunnel_dst = ipv6_addr_unspecified;
+    spd_pointer->tun_src = ipv6_addr_unspecified;
+    spd_pointer->tun_dst = ipv6_addr_unspecified;
     spd_pointer->dst_range = ipv6_addr_unspecified;
     spd_pointer->src_range = ipv6_addr_unspecified;
     spd_pointer->dst_port_range = 0;
@@ -301,8 +319,8 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
     sp_entry->rule = spd_rule->rule;
     sp_entry->tun_mode = spd_rule->tun_mode;
     sp_entry->c_mode = spd_rule->c_mode;
-    sp_entry->tunnel_src = spd_rule->tunnel_src;
-    sp_entry->tunnel_dst = spd_rule->tunnel_dst;
+    sp_entry->tun_src = spd_rule->tun_src;
+    sp_entry->tun_dst = spd_rule->tun_dst;
 
     if(spd_rule->rule == GNRC_IPSEC_F_PROTECT) {
         if(mode == GNRC_IPSEC_SND){

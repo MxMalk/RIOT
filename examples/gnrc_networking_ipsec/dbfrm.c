@@ -129,8 +129,8 @@ int _hex_str_to_key(const char *str, uint8_t *key, size_t keylen) {
 static int _install_sa_hard(char *action, char *id, char *spi, char *dst, 
         char *src, char *proto,
         char *port_dst, char *port_src, char *mode, char *c_mode, char *auth, 
-        char *hash_key, char *enc, char *enc_key, char *iv, char *t_src, 
-        char *t_dst, ipsec_sp_cache_t *sp, ipsec_sa_t *sa) {    
+        char *hash_key, char *enc, char *enc_key, char *iv, char *t_dst, 
+        char *t_src, ipsec_sp_cache_t *sp, ipsec_sa_t *sa) {    
 
     if(strcmp(action, "protect") == 0) {
 
@@ -202,14 +202,14 @@ static int _install_sa_hard(char *action, char *id, char *spi, char *dst,
             return 0;
         }
         if(sa->mode == GNRC_IPSEC_M_TUNNEL){
-            if((ipv6_addr_from_str(&sa->tunnel_dst, t_src) == NULL) ||
-                (ipv6_addr_from_str(&sa->tunnel_src, t_dst) == NULL) ) {
+            if((ipv6_addr_from_str(&sa->tun_src, t_src) == NULL) ||
+                (ipv6_addr_from_str(&sa->tun_dst, t_dst) == NULL) ) {
                     printf("dbfrm: Tunnel address parsing unsuccessful\n");
                     return 0;
             }
         } else {
-            sa->tunnel_dst = ipv6_addr_unspecified;
-            sa->tunnel_src = ipv6_addr_unspecified;
+            sa->tun_dst = ipv6_addr_unspecified;
+            sa->tun_src = ipv6_addr_unspecified;
         }
         /* finally link sa to spd by spi */
         sp->sa = sa->spi;

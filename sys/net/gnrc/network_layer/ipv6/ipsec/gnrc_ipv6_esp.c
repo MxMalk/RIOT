@@ -114,7 +114,7 @@ static int _calc_fields(const ipsec_sa_t *sa, uint8_t *iv_size, uint8_t *icv_siz
 }
 
 gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
-		const ipsec_sa_t *sa_entry, ipsec_ts_t *ts) {
+		const ipsec_sa_t *sa, ipsec_ts_t *ts) {
 	gnrc_pktsnip_t *prev = NULL;
 	gnrc_pktsnip_t *next = NULL;
 	gnrc_pktsnip_t *ipv6 = NULL;
@@ -132,7 +132,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	uint8_t nh;
 	void *payload;
 
-	DEBUG("ipsec_esp: Tx ESP header creation. ID:%i\n", sa_entry->id);
+	DEBUG("ipsec_esp: Tx ESP header creation. ID:%i\n", sa->id);
 
 	LL_SEARCH_SCALAR(pkt, ipv6, type, GNRC_NETTYPE_IPV6);
 	if(ipv6 == NULL){
@@ -140,28 +140,33 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 		gnrc_pktbuf_release(pkt);
 	}
 	ipv6_h = ipv6->data;
-
-	if(sa_entry->mode == 1) {
-		DEBUG("ipsec_esp: TUNNEL mode\n");
-		//TODO TUNNELING!!!
-		//TODO: If tunnel address is same as TS -> _build_self_enc()
-
-		/* we simply take the whole packet for tunnel mode */
-		(void)ipv6;	
-		//TODO: wrap pkt in esp header, put ipv6 header on it, swap addresses 
-		//	for tunnels and return it to the ipv6 thread as a sending message
-		if (gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6,
-							GNRC_NETREG_DEMUX_CTX_ALL, pkt) == 0 ) {
-			DEBUG("ipsec_esp: ERROR unable netapi send packet\n");
-			gnrc_pktbuf_release(pkt);
-		}
-	}
-	/* in transport mode we should have all snips marked to iterate over */
 	nh = ts->prot;
-	LL_SEARCH_SCALAR(pkt, next, type, gnrc_nettype_from_protnum(nh));
-	if(next == NULL) {
-		DEBUG("ipsec_esp: Payload snip not found. Protnum:%i\n", nh);
-		return NULL;
+
+	if(sa->mode == GNRC_IPSEC_M_TUNNEL) {
+		if( ipv6_addr_equal(&ts->dst, &sa->tun_dst) && 
+								ipv6_addr_equal(&ts->src, &sa->tun_src) ) {
+			DEBUG("ipsec_esp: TUNNEL self encapsulation mode\n");
+			gnrc_pktsnip_t *tmp_pkt;	
+			tmp_pkt = gnrc_pktbuf_duplicate_upto(ipv6, 255);
+			gnrc_pktbuf_merge(tmp_pkt);
+			ipv6 = gnrc_pktbuf_replace_snip(ipv6, ipv6->next, tmp_pkt);
+		} else {
+			DEBUG("ipsec_esp: TUNNEL mode\n");
+			/* TODO: process foreign tunneled traffic.
+			 * the main difference to the transport processing ist, that the
+			 * data is the whole packet and after encryption, it is not sent
+			 * to the interface but a fresh ipv6 header is initialized and the
+			 * paket is send to the ipv6 thread again and thus an ESP tunnel
+			 * bypassing SPD-O rule is needed.  */
+		}
+		next = ipv6->next;
+	} else {	
+		/* in transport mode we should have all snips marked to iterate over */
+		LL_SEARCH_SCALAR(pkt, next, type, gnrc_nettype_from_protnum(nh));
+		if(next == NULL) {
+			DEBUG("ipsec_esp: Payload snip not found. Protnum:%i\n", nh);
+			return NULL;
+		}
 	}
 
 	/* Get preceeding pktsnip */
@@ -180,7 +185,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 		snip = snip->next;
 	}
 
-	_calc_fields(sa_entry, &iv_size, &icv_size, &block_size);
+	_calc_fields(sa, &iv_size, &icv_size, &block_size);
 	_calc_padding(&padding_size, (data_size+2), block_size);
 
 	esp_size = sizeof(ipv6_esp_hdr_t) + iv_size + data_size + padding_size 
@@ -192,13 +197,13 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 		return NULL;
 	}
 	esp_h = esp->data;
-	if(!ipsec_increment_sn(sa_entry->spi)){
+	if(!ipsec_increment_sn(sa->spi)){
 		DEBUG("ipsec_esp: sequence number incrementation rejected\n");
 		gnrc_pktbuf_release(pkt);
 		return NULL;
 	}
-	esp_h->sn = byteorder_htonl(sa_entry->sn);
-	esp_h->spi = byteorder_htonl(sa_entry->spi);
+	esp_h->sn = byteorder_htonl(sa->sn);
+	esp_h->spi = byteorder_htonl(sa->spi);
 	payload = (uint8_t*)esp_h + sizeof(ipv6_esp_hdr_t);
 	/* nulling the bits in padding*/
 	memset(((uint8_t*)payload + iv_size + data_size), 0, padding_size);
@@ -225,16 +230,16 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	 * so we can work directly on the packet while encrypting. ICV and IV are 
 	 * filled inside the ecryption*/
 
-	switch(sa_entry->c_mode) {
+	switch(sa->c_mode) {
 		case IPSEC_CIPHER_M_COMB:
-			_encrypt(esp, sa_entry);
+			_encrypt(esp, sa);
 			break;
 		case IPSEC_CIPHER_M_ENC_N_AUTH:
-			/* _hash(esp, sa_entry);
-			_encrypt(esp, sa_entry); 
+			/* _hash(esp, sa);
+			_encrypt(esp, sa); 
 			break;*/
 		case IPSEC_CIPHER_M_AUTH_ONLY:
-			/* _hash(esp, sa_entry); 
+			/* _hash(esp, sa); 
 			break; */
 		default:
 			DEBUG("ipsec_esp: ERROR Cypher mode not supported\n");
@@ -242,9 +247,19 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	}		
 
 	
-	if(sa_entry->mode == GNRC_IPSEC_M_TUNNEL) {
-		/* TODO: Prepare a new IPv6 header, use esp snip as payload and send
-		 * as GNRC_NETAPI_MSG_TYPE_SND to IPv6 thread */
+	if(sa->mode == GNRC_IPSEC_M_TUNNEL) {		
+		if( ! (ipv6_addr_equal(&ts->dst, &sa->tun_dst) && 
+								ipv6_addr_equal(&ts->src, &sa->tun_src)) ) {
+			/* TODO: 
+			 * initialize fresh ipv6 header from sa tunnel data and send it to
+			 * the ipv6 thread*/
+			/*
+			if (gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6,
+							GNRC_NETREG_DEMUX_CTX_ALL, pkt) == 0 ) {
+			DEBUG("ipsec_esp: ERROR unable netapi send packet\n");
+			gnrc_pktbuf_release(pkt);
+			*/
+		}
 	}
 
 	/* calculate intermediate headers between ipv6 and original data */
@@ -265,7 +280,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	 * 
 	 * check regarding pmtu: 	
 	gnrc_pktbuf_merge(pkt);
-	if( (sizeof(ethernet_hdr_t) + pkt->size) > sa_entry->pmtu ) {
+	if( (sizeof(ethernet_hdr_t) + pkt->size) > sa->pmtu ) {
 		DEBUG("ipsec_esp: finished ESP packet exceeded PMTU\n");
 		gnrc_pktbuf_release(pkt);
 		return NULL;
@@ -393,6 +408,7 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 	/** On using DietESP: At this stange we send the decrypted packet to the 
 	 * EHC routines to decompress it */
 
+	/* we do not need blocksize here, but else we'd need two methods */
 	_calc_fields(sa, &iv_size, &icv_size, &blocksize);
 	nh = (uint8_t*)esp->data + esp->size - (icv_size + 1);
 	padding_size = *(nh - 1);
@@ -404,9 +420,10 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 		(((uint8_t*)esp->data) + sizeof(ipv6_esp_hdr_t) + iv_size), data_size);
 		
 	if((int)sa->mode == GNRC_IPSEC_M_TUNNEL) {
-		/* check if self encapsulated */		
-		if(_is_self_encap(esp, data_snip)) {
-			data_snip = _extract_inner_pl(data_snip);
+		/* check if self encapsulated */
+		if( _is_self_encap(esp->next, data_snip) ) {
+			// TODO: assert equality of ipv6 headers
+			esp = _extract_inner_pl(data_snip);
 		} else {
 			if(!_rx_relay_tunnel(data_snip)) {
 				DEBUG("ipsec_esp: ERROR tunneled packet could not be sent\n");

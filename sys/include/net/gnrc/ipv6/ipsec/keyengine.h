@@ -171,8 +171,8 @@ typedef struct __attribute__((__packed__)) {
                             on end of lifetime */
     uint8_t mode;           /**< (0)TRANSPORT mode, (1)TUNNEL mode */
     uint32_t pmtu;          /**< observed path MTU */
-    ipv6_addr_t tunnel_dst; /**< tunnel destination ipv6 address */
-    ipv6_addr_t tunnel_src; /**< tunnel source ipv6 address */
+    ipv6_addr_t tun_dst; /**< tunnel destination ipv6 address */
+    ipv6_addr_t tun_src; /**< tunnel source ipv6 address */
 } ipsec_sa_t;
 
 /**
@@ -194,8 +194,8 @@ typedef struct __attribute__((__packed__)) ipsec_sp_cache {
     FilterRule_t rule;          /**< firewall filter rule */
     TunnelMode_t tun_mode;      /**< (0)TRANSPORT mode, (1)TUNNEL mode */
     ESP_crypto_mode_t c_mode;   /**< cypher mode */
-    ipv6_addr_t tunnel_dst;     /**< tunnel destination ipv6 address */
-    ipv6_addr_t tunnel_src;     /**< tunnel source ipv6 address */
+    ipv6_addr_t tun_dst;     /**< tunnel destination ipv6 address */
+    ipv6_addr_t tun_src;     /**< tunnel source ipv6 address */
     uint32_t sa;                /**< 0 if not associated with a SAD entry */
 } ipsec_sp_cache_t;
 
@@ -215,8 +215,8 @@ typedef struct __attribute__((__packed__)) ipsec_sp {
     FilterRule_t rule;          /**< firewall filter rule */
     TunnelMode_t tun_mode;      /**< (0)TRANSPORT mode, (1)TUNNEL mode */
     ESP_crypto_mode_t c_mode;   /**< cypher mode */
-    ipv6_addr_t tunnel_dst;     /**< tunnel destination ipv6 address */
-    ipv6_addr_t tunnel_src;     /**< tunnel source ipv6 address */
+    ipv6_addr_t tun_dst;     /**< tunnel destination ipv6 address */
+    ipv6_addr_t tun_src;     /**< tunnel source ipv6 address */
 
     /* ranges fields: If these are set, use range between both coresponding
      * struct values */

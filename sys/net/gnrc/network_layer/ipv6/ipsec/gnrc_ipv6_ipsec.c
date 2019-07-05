@@ -18,11 +18,10 @@
 
 #include "net/gnrc/ipv6/ipsec/esp.h"
 #include "net/gnrc/ipv6/ipsec/keyengine.h"
-//#include "net/gnrc/ipv6/ipsec/crypt.h"
 #include "net/gnrc/ipv6/ipsec/ts.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 static kernel_pid_t _pid = KERNEL_PID_UNDEF;
@@ -120,9 +119,7 @@ static void _send_to_interface(gnrc_pktsnip_t *pkt)
 #ifdef MODULE_NETSTATS_IPV6
     netif->ipv6.stats.tx_success++;
     netif->ipv6.stats.tx_bytes += gnrc_pkt_len(pkt->next);
-#endif
-    printf("HEYYYA!!! pkt shortly before netapi_send\n");
-    ipsec_show_pkt(pkt);        
+#endif      
     if (gnrc_netapi_send(netif->pid, pkt) < 1) {
             DEBUG("ipsec: unable to send packet\n");
             gnrc_pktbuf_release(pkt);

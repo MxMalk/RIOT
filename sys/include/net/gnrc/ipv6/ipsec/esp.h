@@ -67,7 +67,6 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Data type to represent an ESP packet trailer.
- * TODO: maybe remove trl alltougether.
 */
 typedef struct __attribute__((packed)) {
 	uint8_t pl;

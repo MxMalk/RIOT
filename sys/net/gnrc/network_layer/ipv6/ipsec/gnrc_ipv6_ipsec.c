@@ -48,43 +48,24 @@ kernel_pid_t ipsec_init(void) {
     return _pid;
 }
 
-//TODO: cleanup or clarify
-/* Interim code to get the pf_key messages to the keyhandler */
-static kernel_pid_t _key_pid = KERNEL_PID_UNDEF;
-static void _set_keyhandler_pid(void) {
-    _key_pid = ipsec_keyengine_init();
-}
-
-/*
-static void _send_pfkey_msg(msg_t *msg) {
-    msg_try_send(msg, _key_pid);
-}
-*/
-/* End of interim code */
-
-#ifdef ENABLE_DEBUG
-
-static void _ipv6_print_info(gnrc_pktsnip_t *pkt)
-{
-    ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)pkt->data);
-    static char addr_str[IPV6_ADDR_MAX_STR_LEN];    
-    static char addr_str2[IPV6_ADDR_MAX_STR_LEN];
-    ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
-    ipv6_addr_to_str(addr_str2, &ipv6->src, sizeof(addr_str2));
-    DEBUG("ipsec: PKT_INFO: SRC: %s   DST: %s\n", addr_str, addr_str2);
-    DEBUG("ipsec: PKT_INFO: ipv6NH: %i", (int)ipv6->nh);
-    if (pkt->next != NULL) {
-        DEBUG(" snipNH: %i\n", gnrc_nettype_to_protnum(pkt->next->type));
-    } else {
-        DEBUG("\n");
-    }
-}
-
+/* snip ladder debug function. Easier to wield than the standard PKTDUMP */
 void ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
 	gnrc_pktsnip_t *snip = pkt;
 	int i = 0;
+
     if(pkt->type == GNRC_NETTYPE_IPV6) {
-        _ipv6_print_info(pkt);
+        ipv6_hdr_t *ipv6 = ((ipv6_hdr_t *)pkt->data);
+        static char addr_str[IPV6_ADDR_MAX_STR_LEN];    
+        static char addr_str2[IPV6_ADDR_MAX_STR_LEN];
+        ipv6_addr_to_str(addr_str, &ipv6->dst, sizeof(addr_str));
+        ipv6_addr_to_str(addr_str2, &ipv6->src, sizeof(addr_str2));
+        DEBUG("ipsec: PKT_INFO: SRC: %s   DST: %s\n", addr_str, addr_str2);
+        DEBUG("ipsec: PKT_INFO: ipv6NH: %i", (int)ipv6->nh);
+        if (pkt->next != NULL) {
+            DEBUG(" snipNH: %i\n", gnrc_nettype_to_protnum(pkt->next->type));
+        } else {
+            DEBUG("\n");
+        }
     }
     
 	while (snip != NULL) {
@@ -98,8 +79,6 @@ void ipsec_show_pkt(gnrc_pktsnip_t *pkt) {
 		i++;
 	}
 }
-
-#endif /* ENABLE_DEBUG */
 
 /* Send to interface function identical with the last lines of the
  * sending process in ipv6 thread*/

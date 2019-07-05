@@ -294,9 +294,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	}	
 
 	/* TODO: sending a merged pkt so the interface results in jibberish beein 
-	 * sent out. I couldn't figure why. This needs to be investigated or we 
-	 * neeed a workarround
-	 * 
+	 * sent out. I couldn't quickly figure why. * 
 	 * check regarding pmtu: 	
 	gnrc_pktbuf_merge(pkt);
 	if( (sizeof(ethernet_hdr_t) + pkt->size) > sa->pmtu ) {
@@ -406,8 +404,8 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 		return NULL;
 	}
 
-	/* TODO: Send SN toAnti Replay Window processing
-	 * pkt = _check_arpw() /@return NULL if no match
+	/* TODO: Send SN to 'Anti Replay Window' processing
+	 * pkt = _check_arpw() /@return NULL if out of range
 	 */	
 
 	/* Authenticate and Decrypt ESP packet */
@@ -470,6 +468,7 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 
 	if((int)sa->mode == GNRC_IPSEC_M_TUNNEL) {
 		if( sencap_ipv6 != NULL ) {
+			// assert equality of inner and rebuild ipv6 header.
 			if(memcmp(new_ipv6->data, sencap_ipv6->data, sizeof(ipv6_hdr_t)) == 0) {
 				DEBUG("ipsec_esp: Self encapsulated paket is legit\n");
 			} else {
@@ -478,7 +477,6 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 				gnrc_pktbuf_release(sencap_ipv6);
 				return NULL;
 			}
-			// TODO: assert equality of inner ipv6 and rebuild header.
 			gnrc_pktbuf_release(sencap_ipv6);
 		}
 	}

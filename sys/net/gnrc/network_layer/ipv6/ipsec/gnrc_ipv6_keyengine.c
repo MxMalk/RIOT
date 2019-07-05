@@ -19,7 +19,8 @@
 
 #define COMBINED_DB_SIZE    (spd_size + spd_i_size + spd_o_size + sad_size)
 
-/* TODO: Implemented databases work by FIFO principle (realloc)*/
+/* Implemented databases work by FIFO principle (realloc) so the more
+ * generalized entries should go into to db later than others. */
 
 ipsec_sp_t *spd;
 ipsec_sp_cache_t *spd_i;
@@ -77,6 +78,8 @@ void _ipsec_parse_spd(void) {
     spd_size = 3 * sizeof(ipsec_sp_t);
     spd = malloc(spd_size);
     spd_pointer = spd;
+
+/* HARDCODED SP rule set. blocking everything, but loopback and ICMP */
 
 /* SPD ENTRY NUMBER 1: loopback traffic */
     ipv6_addr_from_str(&spd_pointer->dst, "::1");
@@ -213,9 +216,11 @@ ipsec_sp_cache_t* _add_sp_cache_entry(ipsec_sp_cache_t *sp,
     newsize = (*db_s + sizeof(ipsec_sp_cache_t));    
     if(newsize > MAX_IPSEC_DB_MEMORY && newsize > max_db_s) {
         DEBUG("ipsec_keyeng: ERROR: Limits reached\n");
-        /* TODO: maybe we could free all caches if this happens?
-         * _free_caches();
-         */
+        /* TODO: intended behaviour for now is to keep the db state and reject
+         * new entries. Generally we can assume that the important connections
+         * are established early in the devices lifetime. Still a configuration
+         * flag for the behaviour would be nice. An interesting idea, would be
+         * to only keep sp entries with negotiated SA's and BYPASS entries. */
         return NULL;
     }
     if(*db_s == 0) {         /* is first entry */
@@ -249,7 +254,10 @@ const ipsec_sp_cache_t *_generate_sp_from_spd(TrafficMode_t traffic_mode,
 
     for(int i=0; i < (int)(spd_size/sizeof(ipsec_sp_cache_t)); i++) {
         spd_rule = (ipsec_sp_t*)( (uint8_t*)spd + (i * sizeof(ipsec_sp_t)) );
-        /* TODO: handle and accept ranges and subnets from spd entries*/
+        /* TODO: handle and accept ranges and subnets from spd entries. One
+         * could also think about bending the RFC rules and not create an 
+         * chache entry for every bypadd or discard rule bu to stick to
+         * ranges on these, thus limiting memory usage*/
         if(!( ipv6_addr_equal(&spd_rule->dst, &ipv6_addr_unspecified)
                         || ipv6_addr_equal(&spd_rule->dst, &ts->dst) )){
             continue;
@@ -302,7 +310,7 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
                             ipsec_ts_t* ts, TrafficMode_t mode,
                             ipsec_sa_t* sa) {
     /* TODO: aknowledge pfflag and act accordingly. For now all entries are
-    filled from the sp rule information */
+    filled mainly from the packets ts information */
     sp_entry->dst = ts->dst;
     sp_entry->src = ts->src;
     sp_entry->nh = ts->prot;
@@ -329,8 +337,8 @@ int _fill_sp_cache_entry(ipsec_sp_cache_t *sp_entry, ipsec_sp_t *spd_rule,
              * _request_sa_negotiation(ts);
              * 
              * If multiple SPs should share a SA, like for example in a 
-             * PROTECTED multicast group, aquisition of existing SA should
-             * be triggered.
+             * PROTECTED multicast group or if protecting multiple protocols
+             * with one SA, aquisition of existing SA should be triggered.
              */
         } else {
             if(sa != NULL) {
@@ -460,10 +468,15 @@ int ipsec_increment_sn(uint32_t spi){
     return -1;    
 }
 
-/* The procesing of the messages is very simplified here message queue and 
- * paket handling will be needed to make this compatible to the reference 
- * implementation. Maybe one could copy a fleshed out version from for example
- * the openbsd kernel. */
+/* TODO: The following are fragments of a possible pfkey communication.
+ * Implementation of it could be beneficial but also very big. All code that
+ * folows can be omitted if pfkey is decided against.
+ * 
+ * On PFKEY:
+ * The procesing of the messages is very simplified here message 
+ * queue and paket handling will be needed to make this compatible to 
+ * the reference implementation. Maybe one could copy a fleshed out version 
+ * from for example the openbsd kernel. */
 static int _msg_add(pfkey_sadb_msg_t *sadb_msg){
     pfkey_sadb_sa_t *sa_ext;
     pfkey_sadb_ext_t *next_ext;
@@ -471,7 +484,7 @@ static int _msg_add(pfkey_sadb_msg_t *sadb_msg){
         next_ext = (pfkey_sadb_ext_t*)( (uint8_t*)sadb_msg + sizeof(pfkey_sadb_msg_t) );
         if(next_ext->sadb_ext_type == SADB_EXT_SA) {
             sa_ext = (pfkey_sadb_sa_t*)next_ext;
-            //TODO: _create_sa(sa_ext);
+            // TODO: _create_sa(sa_ext);
             (void)sa_ext;
         }
     }

@@ -203,7 +203,8 @@ static inline bool _has_valid_size(gnrc_pktsnip_t *pkt, uint8_t protnum)
         case PROTNUM_IPV6_EXT_FRAG:
         case PROTNUM_IPV6_EXT_AH:
         case PROTNUM_IPV6_EXT_ESP:
-        //TODO: Special support for DietESP needed
+        //TODO: Maybe add some sanity checks. e.g. min/max size */
+        /* On DietESP: Size dependent on negotiated compression ruleset */
             return true;
         case PROTNUM_IPV6_EXT_MOB:
             return ((ext->len * IPV6_EXT_LEN_UNIT) + IPV6_EXT_LEN_UNIT) 

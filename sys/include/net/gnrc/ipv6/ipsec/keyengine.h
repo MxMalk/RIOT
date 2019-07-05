@@ -135,7 +135,9 @@ typedef enum {
 /** 
  * @brief   ESP cryptography details.
  * 
- * @note TODO: find a generalized solution to the keysize problem
+ * @note TODO: find a more generalized solution to the keysize problem like 
+ * a array size equal to the biggest supported key and a size list for 
+ * different ciphers to determine read and write distances.
  */
 typedef struct __attribute__((__packed__)) {
     ESP_cipher_t cipher;
@@ -145,8 +147,8 @@ typedef struct __attribute__((__packed__)) {
     uint8_t iv[IPSEC_MAX_IV_SIZE];
 } ipsec_crypto_info_t;
 
-/* TODO: replay window management and assertion must added. Probably best
- * positioned inte keyengine management alongside SN incrementation. 
+/* TODO: replay window management and assertion must be added. Probably best
+ * positioned inside of the keyengine management alongside SN incrementation. 
  * -> Replay window management is the receiver side of SN incrementation*/
 
 /**

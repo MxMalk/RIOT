@@ -304,6 +304,8 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 	}
 	*/
 	
+	/* TODO: add pktsize to SA bytecount limiters. payload or final? */
+
 	return pkt;
 }
 
@@ -368,18 +370,16 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 
 	/** On using DietESP: We run into a problem here. The SPI is used for
 	 * identification at this stage, but we do not know the size of the SPI 
-	 * reduction to the LSB to grab it from the packet. Would this be a system
-	 * wide setting so we could get some kind of global variable for this? We
-	 * then could extract the other details from the negotiated infos.
+	 * reduction to the LSB to grab it from the packet. This would thus need 
+	 * to be a system wide setting.
+	 * We then could extract the other details from the negotiated infos.
 	 * 
 	 * draft-mglt-ipsecme-diet-esp-07 section 8.2 states to match the packet
 	 * with the SA to check for DietESP EHC strategy and then index the SA with
-	 * the sufficient LSB. This seems overly convoluted. Either we have a way
-	 * to reliably address the packet's SA or we can't get the SA in the first
-	 * place.
+	 * the sufficient LSB.
 	 * 
 	 * The draft even supports an sn and spi lsb width of zero, so we need a 
-	 * whole other way to identify the packet. Thus we will assume a leading
+	 * whole other way to identify the packet? Thus we will assume a leading
 	 * method restoring SPI and SN in any way seen fit by the EHC definitions.
 	 * 
 	 * 		pkt = ehc_restore_identifiers(pkt) /@return NULL if no match
@@ -424,6 +424,15 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 			DEBUG("ipsec_esp: ERROR Cypher mode not supported\n");
 			return NULL;
 	}
+
+	/* TODO: Check against SPD database.
+	 *
+	 * -> After the packet is decrypted, we need to check it against the SDP
+	 * rule set, since we where not able to determine its content before 
+	 * decryption. This stems from the fact, that an SA can be shared by 
+	 * multiple SPD rules. Imagine a scenario where a single SA is used for all
+	 * comunication between two systems, but where the SPD rules states to 
+	 * DISCARD all TCP traffic.
 	
 	/** On using DietESP: At this stange we send the decrypted packet to the 
 	 * EHC routines to decompress it */
@@ -480,6 +489,8 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 			gnrc_pktbuf_release(sencap_ipv6);
 		}
 	}
+
+	/* TODO: add original? pktsize to SA bytecount limiters */
 
 	return esp;
 }

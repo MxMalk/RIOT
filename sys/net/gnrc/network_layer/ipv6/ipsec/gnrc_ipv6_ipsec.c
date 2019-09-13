@@ -135,7 +135,6 @@ static void *_event_loop(void *args)
 
     /* register interest in all IPV6 packets */
     gnrc_netreg_register(GNRC_NETTYPE_IPV6_EXT_ESP, &me_reg);
-    _set_keyhandler_pid();
     
     DEBUG("ipsec: thread up and running\n");
     /* start event loop */

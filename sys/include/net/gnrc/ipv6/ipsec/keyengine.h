@@ -198,6 +198,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp_cache {
     ESP_crypto_mode_t c_mode;   /**< cypher mode */
     ipv6_addr_t tun_dst;     /**< tunnel destination ipv6 address */
     ipv6_addr_t tun_src;     /**< tunnel source ipv6 address */
+    /**TODO: tunnel ports are missing */
     uint32_t sa;                /**< 0 if not associated with a SAD entry */
 } ipsec_sp_cache_t;
 
@@ -219,6 +220,7 @@ typedef struct __attribute__((__packed__)) ipsec_sp {
     ESP_crypto_mode_t c_mode;   /**< cypher mode */
     ipv6_addr_t tun_dst;     /**< tunnel destination ipv6 address */
     ipv6_addr_t tun_src;     /**< tunnel source ipv6 address */
+    /**TODO: tunnel ports are missing */
 
     /* ranges fields: If these are set, use range between both coresponding
      * struct values */

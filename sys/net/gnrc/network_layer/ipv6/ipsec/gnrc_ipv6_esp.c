@@ -432,7 +432,7 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 	 * decryption. This stems from the fact, that an SA can be shared by 
 	 * multiple SPD rules. Imagine a scenario where a single SA is used for all
 	 * comunication between two systems, but where the SPD rules states to 
-	 * DISCARD all TCP traffic.
+	 * DISCARD all TCP traffic. */
 	
 	/** On using DietESP: At this stange we send the decrypted packet to the 
 	 * EHC routines to decompress it */

@@ -174,7 +174,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 			ipv6 = _build_self_encap(ipv6);						
 		} else {
 			DEBUG("ipsec_esp: TUNNEL mode\n");
-			/* TODO: process foreign tunneled traffic.
+			/* TODO: process foreign tunnelled traffic.
 			 * the main difference to the transport processing ist, that the
 			 * data is the whole packet and after encryption, it is not sent
 			 * to the interface but a fresh ipv6 header is initialized and the
@@ -455,10 +455,10 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 			data_snip = _extract_inner_pl(data_snip, &sencap_ipv6);
 		} else {
 			if(!_rx_relay_tunnel(data_snip)) {
-				DEBUG("ipsec_esp: ERROR tunneled packet could not be sent\n");
+				DEBUG("ipsec_esp: ERROR tunnelled packet could not be sent\n");
 				gnrc_pktbuf_release(data_snip);
 			} else {
-				DEBUG("ipsec_esp: Tunneled packet relayed. Original pkt consumed.\n");
+				DEBUG("ipsec_esp: Tunnelled packet relayed. Original pkt consumed.\n");
 			}
 			return NULL;
 		}		

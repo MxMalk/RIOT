@@ -26,8 +26,10 @@
 #include "net/gnrc/sixlowpan/ctx.h"
 #include "net/gnrc/sixlowpan/nd.h"
 
+#ifdef MODULE_GNRC_IPV6_IPSEC
 #include "net/gnrc/ipv6/ipsec/esp.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
+#endif
 
 #include "net/protnum.h"
 #include "thread.h"

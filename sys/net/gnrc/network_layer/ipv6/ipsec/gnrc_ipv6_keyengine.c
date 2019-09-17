@@ -19,8 +19,9 @@
 
 #define COMBINED_DB_SIZE    (spd_size + spd_i_size + spd_o_size + sad_size)
 
-/* Implemented databases work by FIFO principle (realloc) so the more
- * generalized entries should go into to db later than others. */
+/* Implemented databases work by FIFO principle */
+
+/* TODO: the method for removing a SA from the SAD is missing */
 
 ipsec_sp_t *spd;
 ipsec_sp_cache_t *spd_i;
